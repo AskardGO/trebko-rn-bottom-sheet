@@ -1,0 +1,11 @@
+rootProject.name = 'RnBottomSheetExample'
+
+apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesSettingsGradle(settings)
+
+includeBuild('../../node_modules/@react-native/gradle-plugin')
+
+include ':app'
+
+// Include the library's Android module directly (monorepo local link)
+include ':rn-bottom-sheet'
+project(':rn-bottom-sheet').projectDir = new File(rootProject.projectDir, '../../android')

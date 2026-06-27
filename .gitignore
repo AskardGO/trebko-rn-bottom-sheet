@@ -1,0 +1,51 @@
+# OSX
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Ruby
+.direnv/
+
+# Xcode
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+project.xcworkspace/
+xcuserdata/
+DerivedData/
+ios/Pods/
+
+# Android
+*.iml
+.idea/
+.gradle/
+local.properties
+*.apk
+*.ap_
+*.aab
+.cxx/
+android/.cxx/
+
+# Build
+lib/
+dist/
+build/
+
+# VSCode
+.vscode/
+
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Testing
+coverage/
