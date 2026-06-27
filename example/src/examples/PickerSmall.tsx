@@ -17,7 +17,6 @@ import { SHEET_STYLE } from '../shared/utils/sheetStyle';
 // ─── Demo catalogue entry ────────────────────────────────────────────────────
 
 export const PICKER_SMALL_DEMO = {
-  key: 'picker2' as const,
   title: 'Picker · 2 items',
   subtitle: 'Dynamic sizing · no search',
 };
@@ -28,17 +27,9 @@ interface Props {
   value?: string;
   onSelect: (item: string) => void;
   onClose: () => void;
-  bottomInset?: number;
-  isImmersive?: boolean;
 }
 
-export function PickerSmallSheet({
-  value,
-  onSelect,
-  onClose,
-  bottomInset = 0,
-  isImmersive = false,
-}: Props) {
+export function PickerSmallSheet({ value, onSelect, onClose }: Props) {
   return (
     <BottomSheetPicker
       title="Select city"
@@ -46,8 +37,6 @@ export function PickerSmallSheet({
       value={value}
       onSelect={onSelect}
       onClose={onClose}
-      bottomInset={bottomInset}
-      isImmersive={isImmersive}
       style={SHEET_STYLE}
     />
   );

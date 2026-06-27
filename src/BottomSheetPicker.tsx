@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { BottomSheet } from './BottomSheet';
 import { BottomSheetFlatList } from './BottomSheetFlatList';
+import { useImmersiveMode } from './useImmersiveMode';
 import type { BottomSheetMethods, BottomSheetProps } from './types';
 import { resolveSize } from './utils';
 
@@ -227,10 +228,13 @@ export function BottomSheetPicker<TItem = string>({
   const searchRef = useRef<TextInput>(null);
   const sheetRef = useRef<BottomSheetMethods>(null);
 
+  // Read immersive state from the module-level hook; explicit sheetProps take precedence.
+  const { isImmersive: hookIsImmersive, bottomInset: hookBottomInset } = useImmersiveMode();
+  const isImmersive: boolean = (sheetProps as { isImmersive?: boolean }).isImmersive ?? hookIsImmersive;
+
   // Mirror BottomSheet's effectiveScreenH logic: when immersive is active the
   // nav bar is hidden and physScreenH is the reliable source of truth.
   const physScreenH = useMemo(() => Dimensions.get('screen').height, []);
-  const isImmersive: boolean = (sheetProps as { isImmersive?: boolean }).isImmersive ?? false;
   const effectiveScreenH = isImmersive ? physScreenH : screenHeight;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -299,8 +303,8 @@ export function BottomSheetPicker<TItem = string>({
     [maxHeight, effectiveScreenH]
   );
 
-  // Destructure bottomInset from sheetProps (forwarded to <BottomSheet> via {...sheetProps}).
-  const bottomInset: number = (sheetProps as { bottomInset?: number }).bottomInset ?? 0;
+  // bottomInset for overhead calculation: explicit sheetProp overrides hook value.
+  const bottomInset: number = (sheetProps as { bottomInset?: number }).bottomInset ?? hookBottomInset;
 
   // Mirror the library's own effectiveBottomInset logic:
   // only apply the inset when the window is in edge-to-edge mode.

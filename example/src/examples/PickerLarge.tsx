@@ -19,7 +19,6 @@ import { SHEET_STYLE } from '../shared/utils/sheetStyle';
 // ─── Demo catalogue entry ────────────────────────────────────────────────────
 
 export const PICKER_LARGE_DEMO = {
-  key: 'picker20' as const,
   title: 'Picker · 20 items',
   subtitle: 'Dynamic sizing · custom row · scroll inside sheet',
 };
@@ -57,17 +56,9 @@ interface Props {
   value?: string;
   onSelect: (item: string) => void;
   onClose: () => void;
-  bottomInset?: number;
-  isImmersive?: boolean;
 }
 
-export function PickerLargeSheet({
-  value,
-  onSelect,
-  onClose,
-  bottomInset = 0,
-  isImmersive = false,
-}: Props) {
+export function PickerLargeSheet({ value, onSelect, onClose }: Props) {
   return (
     <BottomSheetPicker
       title="Select city"
@@ -76,8 +67,6 @@ export function PickerLargeSheet({
       renderItem={CityRow}
       onSelect={onSelect}
       onClose={onClose}
-      bottomInset={bottomInset}
-      isImmersive={isImmersive}
       style={SHEET_STYLE}
     />
   );

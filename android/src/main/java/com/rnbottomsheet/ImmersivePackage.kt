@@ -10,5 +10,5 @@ class ImmersivePackage : ReactPackage {
         listOf(ImmersiveModule(context))
 
     override fun createViewManagers(context: ReactApplicationContext): List<ViewManager<*, *>> =
-        emptyList()
+        listOf(InsetScreenManager())
 }

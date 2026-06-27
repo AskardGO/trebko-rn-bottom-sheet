@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "android": "react-native run-android",
+    "android": "node run-android.js",
     "ios": "react-native run-ios",
     "start": "react-native start",
     "pods": "cd ios && RCT_NEW_ARCH_ENABLED=1 bundle exec pod install",

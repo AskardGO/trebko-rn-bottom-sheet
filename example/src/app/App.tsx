@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ScrollView, StatusBar, StyleSheet, Switch, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useImmersiveMode } from '@trebko/rn-bottom-sheet';
+import { InsetScreen, useImmersiveMode } from '@trebko/rn-bottom-sheet';
 
 import { DemoButton } from '../shared/ui/DemoButton';
 
@@ -41,7 +41,7 @@ export function App() {
   const [multiSearch, setMultiSearch] = useState<string[]>([]);
 
   // Immersive mode (Android only — hides the navigation bar)
-  const { isImmersive, setImmersive, topInset, bottomInset, isSupported } = useImmersiveMode();
+  const { isImmersive, setImmersive, isSupported } = useImmersiveMode();
 
   // Helpers for badges
   const pickerBadge = (v?: string) => v ?? 'None';
@@ -51,7 +51,7 @@ export function App() {
     <GestureHandlerRootView style={s.root}>
       <StatusBar barStyle="dark-content" backgroundColor="#F3F4F6" />
 
-      <View style={[s.container, { paddingTop: topInset }]}>
+      <InsetScreen style={s.container}>
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <View style={s.header}>
           <Text style={s.title}>Bottom Sheet Demos</Text>
@@ -65,41 +65,48 @@ export function App() {
           showsVerticalScrollIndicator={false}
         >
           <DemoButton
-            {...CLASSIC_DEMO}
+            title={CLASSIC_DEMO.title}
+            subtitle={CLASSIC_DEMO.subtitle}
             onPress={() => setOpen('classic')}
           />
           <DemoButton
-            {...PICKER_SMALL_DEMO}
+            title={PICKER_SMALL_DEMO.title}
+            subtitle={PICKER_SMALL_DEMO.subtitle}
             badge={pickerBadge(picker2)}
             isBadgeActive={!!picker2}
             onPress={() => setOpen('picker2')}
           />
           <DemoButton
-            {...PICKER_LARGE_DEMO}
+            title={PICKER_LARGE_DEMO.title}
+            subtitle={PICKER_LARGE_DEMO.subtitle}
             badge={pickerBadge(picker20)}
             isBadgeActive={!!picker20}
             onPress={() => setOpen('picker20')}
           />
           <DemoButton
-            {...PICKER_SMALL_SEARCH_DEMO}
+            title={PICKER_SMALL_SEARCH_DEMO.title}
+            subtitle={PICKER_SMALL_SEARCH_DEMO.subtitle}
             badge={pickerBadge(picker2search)}
             isBadgeActive={!!picker2search}
             onPress={() => setOpen('picker2search')}
           />
           <DemoButton
-            {...PICKER_LARGE_SEARCH_DEMO}
+            title={PICKER_LARGE_SEARCH_DEMO.title}
+            subtitle={PICKER_LARGE_SEARCH_DEMO.subtitle}
             badge={pickerBadge(picker20search)}
             isBadgeActive={!!picker20search}
             onPress={() => setOpen('picker20search')}
           />
           <DemoButton
-            {...MULTI_PICKER_DEMO}
+            title={MULTI_PICKER_DEMO.title}
+            subtitle={MULTI_PICKER_DEMO.subtitle}
             badge={multiBadge(multi)}
             isBadgeActive={multi.length > 0}
             onPress={() => setOpen('multi')}
           />
           <DemoButton
-            {...MULTI_PICKER_SEARCH_DEMO}
+            title={MULTI_PICKER_SEARCH_DEMO.title}
+            subtitle={MULTI_PICKER_SEARCH_DEMO.subtitle}
             badge={multiBadge(multiSearch)}
             isBadgeActive={multiSearch.length > 0}
             onPress={() => setOpen('multiSearch')}
@@ -125,19 +132,17 @@ export function App() {
             </View>
           </View>
         )}
-      </View>
+      </InsetScreen>
 
       {/* ── Sheets (rendered outside padded area → cover full screen) ───── */}
       {open === 'classic' && (
-        <ClassicSheet onClose={close} bottomInset={bottomInset} isImmersive={isImmersive} />
+        <ClassicSheet onClose={close} />
       )}
       {open === 'picker2' && (
         <PickerSmallSheet
           value={picker2}
           onSelect={(v) => { setPicker2(v); close(); }}
           onClose={close}
-          bottomInset={bottomInset}
-          isImmersive={isImmersive}
         />
       )}
       {open === 'picker20' && (
@@ -145,8 +150,6 @@ export function App() {
           value={picker20}
           onSelect={(v) => { setPicker20(v); close(); }}
           onClose={close}
-          bottomInset={bottomInset}
-          isImmersive={isImmersive}
         />
       )}
       {open === 'picker2search' && (
@@ -154,8 +157,6 @@ export function App() {
           value={picker2search}
           onSelect={(v) => { setPicker2search(v); close(); }}
           onClose={close}
-          bottomInset={bottomInset}
-          isImmersive={isImmersive}
         />
       )}
       {open === 'picker20search' && (
@@ -163,8 +164,6 @@ export function App() {
           value={picker20search}
           onSelect={(v) => { setPicker20search(v); close(); }}
           onClose={close}
-          bottomInset={bottomInset}
-          isImmersive={isImmersive}
         />
       )}
       {open === 'multi' && (
@@ -172,8 +171,6 @@ export function App() {
           values={multi}
           onValuesChange={setMulti}
           onClose={close}
-          bottomInset={bottomInset}
-          isImmersive={isImmersive}
         />
       )}
       {open === 'multiSearch' && (
@@ -181,8 +178,6 @@ export function App() {
           values={multiSearch}
           onValuesChange={setMultiSearch}
           onClose={close}
-          bottomInset={bottomInset}
-          isImmersive={isImmersive}
         />
       )}
     </GestureHandlerRootView>

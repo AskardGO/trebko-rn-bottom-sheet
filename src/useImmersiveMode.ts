@@ -1,38 +1,98 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, StatusBar, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { DeviceEventEmitter, Platform } from 'react-native';
 import {
   getBottomInset,
+  getTopInset,
   isImmersiveModeSupported,
   setImmersiveMode,
 } from './ImmersiveMode';
 
 // ── Module-level singleton ────────────────────────────────────────────────────
-// Shared state lets every hook instance (and useImmersiveModeChange) stay in
-// sync without a React Context or prop drilling.
 
 let _isImmersive = false;
+let _topInset = 0;
+let _bottomInset = 0;
+/** Physical nav-bar height in dp — seeded once at launch, never cleared in immersive mode. */
 let _navBarHeight = 0;
-let _navBarHeightReady = false;
-const _subscribers = new Set<(value: boolean) => void>();
+const _immersiveSubscribers = new Set<(value: boolean) => void>();
+const _insetSubscribers = new Set<() => void>();
+let _insetListenerRegistered = false;
 
-function _broadcast(value: boolean) {
-  _subscribers.forEach((fn) => fn(value));
+function _broadcastImmersive(value: boolean) {
+  _immersiveSubscribers.forEach((fn) => fn(value));
+}
+
+function _broadcastInsets() {
+  _insetSubscribers.forEach((fn) => fn());
 }
 
 function _apply(enabled: boolean) {
   if (_isImmersive === enabled) return;
   _isImmersive = enabled;
   setImmersiveMode(enabled);
-  _broadcast(enabled);
+  _broadcastImmersive(enabled);
+  if (enabled) {
+    if (_bottomInset !== 0) {
+      _bottomInset = 0;
+      _broadcastInsets();
+    }
+    return;
+  }
+  getBottomInset().then((bottom) => {
+    if (!_isImmersive && bottom !== _bottomInset) {
+      _bottomInset = bottom;
+      _broadcastInsets();
+    }
+  });
 }
 
-function _initNavBar(): Promise<number> {
-  if (_navBarHeightReady) return Promise.resolve(_navBarHeight);
-  return getBottomInset().then((h) => {
-    _navBarHeight = h;
-    _navBarHeightReady = true;
-    return h;
+function _seedInsets(attempt = 0) {
+  Promise.all([getTopInset(), getBottomInset()]).then(([top, bottom]) => {
+    if (bottom > 0 && bottom !== _navBarHeight) {
+      _navBarHeight = bottom;
+      _broadcastInsets();
+    }
+    const nextBottom = _isImmersive ? 0 : bottom;
+    const needsBottom = !_isImmersive && nextBottom === 0;
+    const shouldRetry = attempt < 8 && (top === 0 || needsBottom);
+
+    if (shouldRetry) {
+      setTimeout(() => _seedInsets(attempt + 1), 50 * (attempt + 1));
+      return;
+    }
+
+    if (top !== _topInset || nextBottom !== _bottomInset) {
+      _topInset = top;
+      _bottomInset = nextBottom;
+      _broadcastInsets();
+    }
   });
+}
+
+function _ensureInsetListener() {
+  if (_insetListenerRegistered || Platform.OS !== 'android') return;
+  _insetListenerRegistered = true;
+
+  // Seed values before InsetScreen mounts and emits the first event.
+  _seedInsets();
+
+  DeviceEventEmitter.addListener(
+    'screenInsetsChanged',
+    (event: { top?: number; bottom?: number }) => {
+      const top = event.top ?? 0;
+      const bottom = event.bottom ?? 0;
+      // InsetScreenView always measures correctly via getInsets() (no throw).
+      // Cache the non-zero bottom as the physical nav-bar height so it stays
+      // available while in immersive mode (where bottom is reported as 0).
+      if (bottom > 0) {
+        _navBarHeight = bottom;
+      }
+      if (top === _topInset && bottom === _bottomInset) return;
+      _topInset = top;
+      _bottomInset = bottom;
+      _broadcastInsets();
+    }
+  );
 }
 
 // ── useImmersiveMode ──────────────────────────────────────────────────────────
@@ -48,61 +108,74 @@ export interface UseImmersiveModeReturn {
   toggle: () => void;
 
   /**
-   * Top padding to apply to the root layout.
-   * Non-zero when the window extends behind the status bar (immersive mode or
-   * a device that defaults to edge-to-edge). Keeps content below the status bar.
+   * Top inset in dp — measured natively by [InsetScreen] from visible
+   * status-bar / cutout insets. Zero until an [InsetScreen] mounts.
    */
   topInset: number;
 
   /**
-   * Bottom padding to forward to sheets / scroll views.
-   * Non-zero only when edge-to-edge AND the nav bar is currently visible
-   * (immersive OFF). Zero when the nav bar is hidden or outside the window.
+   * Bottom inset in dp — measured natively by [InsetScreen] from the
+   * currently visible navigation bar. Updates automatically when immersive
+   * mode or the keyboard toolbar toggles the nav bar.
    */
   bottomInset: number;
+
+  /**
+   * Physical navigation-bar height in dp (hardware), measured once at launch.
+   * Stays non-zero in immersive mode — use for scroll padding when the keyboard
+   * is open and the nav bar is hidden.
+   */
+  navBarHeight: number;
 
   /** True on Android when the ImmersiveMode native module is linked. */
   isSupported: boolean;
 }
 
+/** Cached physical nav-bar height in dp (see {@link UseImmersiveModeReturn.navBarHeight}). */
+export function getNavBarHeight(): number {
+  return _navBarHeight;
+}
+
 /**
- * Manages Android immersive mode (hidden navigation bar) and exposes the
- * derived layout insets so callers don't need to compute them separately.
+ * Manages Android immersive mode and exposes native screen insets.
  *
- * Multiple calls to this hook share a single global state — toggling immersive
- * in one component is instantly reflected in every other subscriber.
- *
- * Add `ImmersivePackage` to your app's `MainApplication.getPackages()` and
- * call `ImmersiveModule.reapplyIfNeeded(this)` from `MainActivity.onWindowFocusChanged`
- * to keep the mode sticky after dialogs or permission prompts.
+ * Mount an {@link InsetScreen} wrapper around your root content — Kotlin
+ * computes top/bottom padding via `WindowInsetsCompat` and broadcasts
+ * values through `screenInsetsChanged`.
  *
  * @example
  * ```tsx
- * const { isImmersive, setImmersive, topInset, bottomInset } = useImmersiveMode();
+ * const { isImmersive, setImmersive, bottomInset } = useImmersiveMode();
  *
  * return (
- *   <View style={{ flex: 1, paddingTop: topInset }}>
- *     <Switch value={isImmersive} onValueChange={setImmersive} />
- *   </View>
+ *   <>
+ *     <InsetScreen style={{ flex: 1 }}>
+ *       <Switch value={isImmersive} onValueChange={setImmersive} />
+ *     </InsetScreen>
+ *     <BottomSheet bottomInset={bottomInset} isImmersive={isImmersive} />
+ *   </>
  * );
  * ```
  */
 export function useImmersiveMode(): UseImmersiveModeReturn {
-  const [isImmersive, _setLocal] = useState(_isImmersive);
+  const [isImmersive, setLocalImmersive] = useState(_isImmersive);
+  const [topInset, setTopInset] = useState(_topInset);
+  const [bottomInset, setBottomInset] = useState(_bottomInset);
   const [navBarHeight, setNavBarHeight] = useState(_navBarHeight);
 
-  // Load the hardware nav-bar height once (shared across all hook instances).
   useEffect(() => {
-    _initNavBar().then(setNavBarHeight);
-  }, []);
-
-  // Mirror global immersive changes into local React state so the component
-  // re-renders whenever any instance calls setImmersive / toggle.
-  useEffect(() => {
-    const sub = (v: boolean) => _setLocal(v);
-    _subscribers.add(sub);
+    _ensureInsetListener();
+    const immersiveSub = (v: boolean) => setLocalImmersive(v);
+    const insetSub = () => {
+      setTopInset(_topInset);
+      setBottomInset(_bottomInset);
+      setNavBarHeight(_navBarHeight);
+    };
+    _immersiveSubscribers.add(immersiveSub);
+    _insetSubscribers.add(insetSub);
     return () => {
-      _subscribers.delete(sub);
+      _immersiveSubscribers.delete(immersiveSub);
+      _insetSubscribers.delete(insetSub);
     };
   }, []);
 
@@ -114,33 +187,13 @@ export function useImmersiveMode(): UseImmersiveModeReturn {
     _apply(!_isImmersive);
   }, []);
 
-  // ── Layout insets ─────────────────────────────────────────────────────────
-  // isEdgeToEdge: the window fills the physical screen (nav bar overlays).
-  // True both for immersive mode and for devices that default to edge-to-edge
-  // (Android 15+ enforces it for all apps).
-  const { height: windowH } = useWindowDimensions();
-  const physScreenH = useMemo(() => Dimensions.get('screen').height, []);
-  const isEdgeToEdge = windowH >= physScreenH - 5;
-
-  // topInset — two triggers are needed:
-  //   • isEdgeToEdge: device is always edge-to-edge (no immersive involved)
-  //   • isImmersive:  immersive was just toggled; useWindowDimensions() may lag
-  //                   because Display.getMetrics() doesn't always update in the
-  //                   same JS frame as setDecorFitsSystemWindows(). The React
-  //                   state is synchronous so it fires immediately.
-  const topInset = (isEdgeToEdge || isImmersive)
-    ? (StatusBar.currentHeight ?? 0)
-    : 0;
-
-  // bottomInset — only needed when the nav bar physically overlaps the content.
-  const bottomInset = (isEdgeToEdge && !isImmersive) ? navBarHeight : 0;
-
   return {
     isImmersive,
     setImmersive,
     toggle,
     topInset,
     bottomInset,
+    navBarHeight,
     isSupported: isImmersiveModeSupported,
   };
 }
@@ -150,31 +203,20 @@ export function useImmersiveMode(): UseImmersiveModeReturn {
 /**
  * Fires `callback` whenever immersive mode is enabled or disabled by any
  * component (including other `useImmersiveMode` instances).
- *
- * The callback reference is always kept up-to-date internally, so you can
- * pass an inline function without adding it to a dependency array.
- *
- * @example
- * ```tsx
- * useImmersiveModeChange((enabled) => {
- *   Analytics.track('immersive_mode', { enabled });
- * });
- * ```
  */
 export function useImmersiveModeChange(
   callback: (isImmersive: boolean) => void
 ): void {
   const ref = useRef(callback);
-  // Keep the ref current on every render so stale closures are never an issue.
   useEffect(() => {
     ref.current = callback;
   });
 
   useEffect(() => {
     const sub = (v: boolean) => ref.current(v);
-    _subscribers.add(sub);
+    _immersiveSubscribers.add(sub);
     return () => {
-      _subscribers.delete(sub);
+      _immersiveSubscribers.delete(sub);
     };
   }, []);
 }

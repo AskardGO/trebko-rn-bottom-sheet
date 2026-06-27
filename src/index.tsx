@@ -26,5 +26,11 @@ export {
   getTopInset,
   isImmersiveModeSupported,
 } from './ImmersiveMode';
-export { useImmersiveMode, useImmersiveModeChange } from './useImmersiveMode';
+export {
+  useImmersiveMode,
+  useImmersiveModeChange,
+  getNavBarHeight,
+} from './useImmersiveMode';
 export type { UseImmersiveModeReturn } from './useImmersiveMode';
+export { InsetScreen } from './InsetScreen';
+export type { InsetScreenProps } from './InsetScreen';

@@ -13,18 +13,24 @@ class MainActivity : ReactActivity() {
         super.onCreate(null)
     }
 
-    /**
-     * Android resets the navigation bar whenever the window regains focus
-     * (e.g. after a dialog, a permission prompt, or the dev menu closes).
-     * Delegating to ImmersiveModule.reapplyIfNeeded keeps the mode sticky.
-     */
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) ImmersiveModule.reapplyIfNeeded(this)
+    override fun onResume() {
+        super.onResume()
+        ImmersiveModule.reapplyIfNeeded(this)
     }
 
     override fun getMainComponentName(): String = "RnBottomSheetExample"
 
     override fun createReactActivityDelegate(): ReactActivityDelegate =
-        DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
+        object : DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled) {
+            override fun onWindowFocusChanged(hasFocus: Boolean) {
+                // BridgelessReact raises a soft exception if focus arrives before the
+                // ReactContext is created on cold start. Skip until the host is ready.
+                if (reactHost?.currentReactContext != null) {
+                    super.onWindowFocusChanged(hasFocus)
+                }
+                if (hasFocus) {
+                    ImmersiveModule.reapplyIfNeeded(this@MainActivity)
+                }
+            }
+        }
 }

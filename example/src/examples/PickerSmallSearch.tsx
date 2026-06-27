@@ -17,7 +17,6 @@ import { SHEET_STYLE } from '../shared/utils/sheetStyle';
 // ─── Demo catalogue entry ────────────────────────────────────────────────────
 
 export const PICKER_SMALL_SEARCH_DEMO = {
-  key: 'picker2search' as const,
   title: 'Picker · 2 items + search',
   subtitle: 'Dynamic sizing · filterable list',
 };
@@ -28,17 +27,9 @@ interface Props {
   value?: string;
   onSelect: (item: string) => void;
   onClose: () => void;
-  bottomInset?: number;
-  isImmersive?: boolean;
 }
 
-export function PickerSmallSearchSheet({
-  value,
-  onSelect,
-  onClose,
-  bottomInset = 0,
-  isImmersive = false,
-}: Props) {
+export function PickerSmallSearchSheet({ value, onSelect, onClose }: Props) {
   return (
     <BottomSheetPicker
       title="Select city"
@@ -48,8 +39,6 @@ export function PickerSmallSearchSheet({
       searchPlaceholder="Search cities..."
       onSelect={onSelect}
       onClose={onClose}
-      bottomInset={bottomInset}
-      isImmersive={isImmersive}
       style={SHEET_STYLE}
     />
   );
