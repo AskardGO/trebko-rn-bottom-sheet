@@ -1,8 +1,26 @@
-# rn-bottom-sheet
+# @trebko/rn-bottom-sheet
 
-A modern, performant bottom sheet library for React Native with full **New Architecture (Fabric)** support.
+A modern, performant bottom sheet library for **React Native 0.86+** with full **New Architecture (Fabric)** support.
 
 Built on top of [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/) and [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/) — all animations and gesture handling run on the UI thread at 60 FPS.
+
+---
+
+<div align="center">
+
+### ☕ Support the project
+
+If this library saves you time, consider buying me a coffee!
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/askard)
+
+<a href="https://buymeacoffee.com/askard">
+  <img src="docs/bmc-qr.png" width="160" alt="Scan to buy me a coffee" />
+</a>
+
+**[buymeacoffee.com/askard](https://buymeacoffee.com/askard)**
+
+</div>
 
 ---
 
@@ -13,7 +31,8 @@ Built on top of [react-native-reanimated](https://docs.swmansion.com/react-nativ
 - **Keyboard avoidance** — sheet lifts above the software keyboard frame-perfectly
 - **Picker component** — single-select, multi-select, searchable, fully customisable rows
 - **Custom scroll indicator** — animated thumb, no native flicker
-- **Immersive mode (Android)** — hide the navigation bar with hooks and a native module
+- **Immersive mode (Android)** — hide the navigation bar; `InsetScreen` + `useImmersiveMode` handle insets automatically
+- **Edge-to-edge (Android 15+)** — robust bottom-inset resolution; `BottomSheet` reads `navBarHeight` automatically — zero boilerplate
 - **TypeScript** — fully typed API, generic `BottomSheetFlatList<T>`
 - **New Architecture ready** — Fabric + Turbo Modules compatible
 
@@ -37,6 +56,7 @@ Built on top of [react-native-reanimated](https://docs.swmansion.com/react-nativ
 - [ScrollIndicator](#scrollindicator)
 - [Immersive mode (Android)](#immersive-mode-android)
   - [Native setup](#native-setup)
+  - [InsetScreen](#insetscreen)
   - [useImmersiveMode](#useimmersivemode)
   - [useImmersiveModeChange](#useimmersivemodechange)
   - [Low-level utilities](#low-level-utilities)
@@ -136,8 +156,9 @@ function Example() {
 | `backdropOpacity` | `number` | `0.5` | Max backdrop opacity (0–1). Driven by sheet position — no extra animation. |
 | `enablePanDownToClose` | `boolean` | `true` | Allow the handle to be dragged down to close the sheet. |
 | `enableHandlePanningGesture` | `boolean` | `true` | Enable the pan gesture on the handle. |
-| `bottomInset` | `number` | `0` | Bottom safe-area inset in dp. Passed to scroll children as `paddingBottom` so list items aren't hidden behind the nav bar. |
-| `isImmersive` | `boolean` | `false` | Pass `true` while Android immersive mode (nav bar hidden) is active. Uses physical screen height for positioning to avoid the gap that appears before `useWindowDimensions` updates. |
+| `bottomInset` | `number` | auto¹ | Bottom safe-area inset in dp. Auto-read from `useImmersiveMode()` — only pass explicitly to override (e.g. iOS `useSafeAreaInsets().bottom`). |
+| `isImmersive` | `boolean` | auto¹ | Whether Android immersive mode (nav bar hidden) is active. Auto-read from `useImmersiveMode()`. |
+| `navBarHeight` | `number` | auto¹ | Physical nav-bar height in dp. Auto-read from `useImmersiveMode()`. Used to pad scroll content when immersive + keyboard opens. |
 | `enableKeyboardAvoid` | `boolean` | `true` | Lift the sheet above the software keyboard. The sheet top stays fixed; only the content area shrinks. |
 | `animationConfigs` | `AnimationConfig` | — | Fine-tune open/close animation (spring or timing). |
 | `animatedPosition` | `SharedValue<number>` | — | External shared value mirroring the sheet's `translateY`. Drive parallel animations from it. |
@@ -147,6 +168,8 @@ function Example() {
 | `style` | `StyleProp<ViewStyle>` | — | Extra styles on the sheet container. Override `backgroundColor`, `borderTopLeftRadius`, shadows, etc. |
 
 > `SnapPoint` is `number | string`. Examples: `300`, `'50%'`, `'90%'`.
+>
+> ¹ **auto** — value is read automatically from the module-level `useImmersiveMode()` singleton. Wrap your app root in `<InsetScreen>` once and these props never need to be passed explicitly on Android.
 
 ### Imperative API (ref)
 
@@ -439,39 +462,62 @@ This handles the case where Android resets the nav bar after a dialog, permissio
 
 ---
 
+### `InsetScreen`
+
+A native Android wrapper component that measures system-bar insets via `WindowInsetsCompat` and broadcasts them to the JavaScript layer. Wrap your root content once — all `BottomSheet` instances in the tree automatically receive the correct `bottomInset` and `navBarHeight` without any manual prop passing.
+
+```tsx
+import { InsetScreen } from '@trebko/rn-bottom-sheet';
+
+<GestureHandlerRootView style={{ flex: 1 }}>
+  <InsetScreen style={{ flex: 1 }}>
+    <YourApp />
+  </InsetScreen>
+
+  {/* Sheets go here — they read insets automatically */}
+  {open && <BottomSheetPicker items={items} onSelect={pick} onClose={close} />}
+</GestureHandlerRootView>
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `applyTopInset` | `boolean` | `true` | Apply `paddingTop` equal to the status-bar / cutout height. |
+| `applyBottomInset` | `boolean` | `true` | Apply `paddingBottom` equal to the visible navigation-bar height. |
+| All `ViewProps` | — | — | Forwarded to the underlying View. |
+
+> On iOS `InsetScreen` renders a plain `View`. Use `SafeAreaView` or `useSafeAreaInsets()` for iOS insets.
+
+---
+
 ### `useImmersiveMode`
 
 The primary hook. Manages immersive state globally — toggling in one component instantly updates every other subscriber.
 
 ```tsx
-import { useImmersiveMode } from '@trebko/rn-bottom-sheet';
+import { InsetScreen, useImmersiveMode, BottomSheetPicker } from '@trebko/rn-bottom-sheet';
 
-function Screen() {
-  const {
-    isImmersive,   // boolean — is the nav bar currently hidden?
-    setImmersive,  // (enabled: boolean) => void
-    toggle,        // () => void
-    topInset,      // number — paddingTop for the root View
-    bottomInset,   // number — paddingBottom for sheets / scroll views
-    isSupported,   // boolean — true on Android when the module is linked
-  } = useImmersiveMode();
+function App() {
+  const { isImmersive, setImmersive, isSupported } = useImmersiveMode();
 
   return (
-    <View style={{ flex: 1, paddingTop: topInset }}>
-      {isSupported && (
-        <Switch value={isImmersive} onValueChange={setImmersive} />
-      )}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* InsetScreen applies paddingTop/paddingBottom for system bars */}
+      <InsetScreen style={{ flex: 1 }}>
+        <MyContent />
+        {isSupported && (
+          <Switch value={isImmersive} onValueChange={setImmersive} />
+        )}
+      </InsetScreen>
 
+      {/* BottomSheet auto-reads isImmersive, bottomInset, navBarHeight — no props needed */}
       {open && (
-        <BottomSheet
-          bottomInset={bottomInset}
-          isImmersive={isImmersive}
+        <BottomSheetPicker
+          items={cities}
+          onSelect={setCity}
           onClose={() => setOpen(false)}
-        >
-          ...
-        </BottomSheet>
+        />
       )}
-    </View>
+    </GestureHandlerRootView>
   );
 }
 ```
@@ -635,4 +681,4 @@ MIT
 
 ---
 
-Made with ❤️ by [Trebko](https://github.com/trebko)
+Made with ❤️ by [Trebko](https://github.com/AskardGO) · [☕ Buy me a coffee](https://buymeacoffee.com/askard)
