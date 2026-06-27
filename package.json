@@ -1,6 +1,6 @@
 {
   "name": "@trebko/rn-bottom-sheet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Modern bottom sheet component for React Native with New Architecture support",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",
