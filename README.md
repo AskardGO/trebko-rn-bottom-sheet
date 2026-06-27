@@ -33,6 +33,7 @@ Built on top of [react-native-reanimated](https://docs.swmansion.com/react-nativ
 - **Custom scroll indicator** — animated thumb, no native flicker
 - **Immersive mode (Android)** — hide the navigation bar; `InsetScreen` + `useImmersiveMode` handle insets automatically
 - **Edge-to-edge (Android 15+)** — robust bottom-inset resolution; `BottomSheet` reads `navBarHeight` automatically — zero boilerplate
+- **iOS safe-area insets** — `InsetScreen` reads `UIWindow.safeAreaInsets` natively (no third-party deps); home indicator / notch / Dynamic Island handled automatically
 - **TypeScript** — fully typed API, generic `BottomSheetFlatList<T>`
 - **New Architecture ready** — Fabric + Turbo Modules compatible
 
@@ -75,6 +76,8 @@ Complete the peer dependency setup:
 
 - **Reanimated** → [getting started guide](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started)
 - **Gesture Handler** → [installation guide](https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation)
+
+> iOS safe-area insets (home indicator, notch, Dynamic Island) are handled automatically by the library's own native code — no additional packages needed.
 
 ---
 
@@ -464,7 +467,14 @@ This handles the case where Android resets the nav bar after a dialog, permissio
 
 ### `InsetScreen`
 
-A native Android wrapper component that measures system-bar insets via `WindowInsetsCompat` and broadcasts them to the JavaScript layer. Wrap your root content once — all `BottomSheet` instances in the tree automatically receive the correct `bottomInset` and `navBarHeight` without any manual prop passing.
+A screen wrapper that measures system-bar insets and broadcasts them to every `BottomSheet` in the tree — wrap your root once and all sheets adjust automatically, with zero prop drilling.
+
+| Platform | How insets are measured |
+|----------|------------------------|
+| **Android** | `WindowInsetsCompat` in Kotlin — handles immersive mode, edge-to-edge, Android 15+ nav bar |
+| **iOS** | `UIWindow.safeAreaInsets` in Objective-C — handles home indicator, notch, Dynamic Island, iPad |
+
+No third-party dependencies required on either platform.
 
 ```tsx
 import { InsetScreen } from '@trebko/rn-bottom-sheet';
@@ -474,18 +484,16 @@ import { InsetScreen } from '@trebko/rn-bottom-sheet';
     <YourApp />
   </InsetScreen>
 
-  {/* Sheets go here — they read insets automatically */}
+  {/* Sheets auto-read insets on both Android and iOS */}
   {open && <BottomSheetPicker items={items} onSelect={pick} onClose={close} />}
 </GestureHandlerRootView>
 ```
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `applyTopInset` | `boolean` | `true` | Apply `paddingTop` equal to the status-bar / cutout height. |
-| `applyBottomInset` | `boolean` | `true` | Apply `paddingBottom` equal to the visible navigation-bar height. |
+| `applyTopInset` | `boolean` | `true` | Apply `paddingTop` equal to the status-bar / cutout / notch height. |
+| `applyBottomInset` | `boolean` | `true` | Apply `paddingBottom` equal to the nav-bar / home-indicator height. |
 | All `ViewProps` | — | — | Forwarded to the underlying View. |
-
-> On iOS `InsetScreen` renders a plain `View`. Use `SafeAreaView` or `useSafeAreaInsets()` for iOS insets.
 
 ---
 

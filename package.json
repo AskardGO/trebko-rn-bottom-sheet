@@ -1,7 +1,7 @@
 {
   "name": "@trebko/rn-bottom-sheet",
-  "version": "0.2.1",
-  "description": "Bottom sheet for React Native 0.86+: snap points, dynamic sizing, built-in picker with search, Android edge-to-edge & immersive mode, New Architecture (Fabric/Bridgeless)",
+  "version": "0.2.2",
+  "description": "Bottom sheet for React Native 0.86+: snap points, dynamic sizing, built-in picker with search, Android edge-to-edge & immersive mode, iOS safe-area auto-insets, New Architecture (Fabric/Bridgeless)",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",
   "types": "lib/typescript/index.d.ts",

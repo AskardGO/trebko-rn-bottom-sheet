@@ -12,37 +12,45 @@ import { useImmersiveMode } from './useImmersiveMode';
 
 export interface InsetScreenProps extends ViewProps {
   children?: React.ReactNode;
-  /** Apply top padding for the status bar / cutout. Default: true. */
+  /** Apply top padding for the status bar / notch / cutout. Default: true. */
   applyTopInset?: boolean;
-  /** Apply bottom padding for the navigation bar when visible. Default: true. */
+  /** Apply bottom padding for the nav bar / home indicator. Default: true. */
   applyBottomInset?: boolean;
 }
 
-type NativeInsetScreenProps = InsetScreenProps;
-
+// RNInsetScreen is a native view on both Android and iOS.
+//  • Android (InsetScreenView.kt): measures WindowInsetsCompat and emits
+//    'screenInsetsChanged' via DeviceEventEmitter.
+//  • iOS (RNInsetScreenManager.mm): overrides safeAreaInsetsDidChange and emits
+//    'screenInsetsChanged' via NativeEventEmitter (RNInsetScreenEmitter).
+// On other platforms (web, etc.) the native component is unavailable; the
+// component falls back to a plain View with no padding.
 const NativeInsetScreen =
-  Platform.OS === 'android'
-    ? requireNativeComponent<NativeInsetScreenProps>('RNInsetScreen')
+  Platform.OS === 'android' || Platform.OS === 'ios'
+    ? requireNativeComponent<InsetScreenProps>('RNInsetScreen')
     : null;
 
 /**
- * Native Android screen wrapper that applies system-bar insets as padding.
+ * Screen wrapper that automatically applies system-bar insets as padding and
+ * broadcasts them to every `BottomSheet` / `useImmersiveMode` in the tree.
  *
- * Inset values are computed in Kotlin via `WindowInsetsCompat` and broadcast
- * through the `screenInsetsChanged` event (consumed by `useImmersiveMode`).
- * Padding is applied on an inner JS `View` so Yoga layout always respects
- * system-bar insets (custom native ViewGroups can ignore root padding).
+ * **Android**: insets are measured natively via `WindowInsetsCompat` —
+ * handles immersive mode, edge-to-edge, Android 15+ navigation bar.
  *
- * On iOS this falls back to a plain `View` — use `SafeAreaView` or pass
- * `useSafeAreaInsets().bottom` to sheets manually.
+ * **iOS**: insets are measured natively via `UIWindow.safeAreaInsets` —
+ * handles home indicator, notch, Dynamic Island, iPad bottom bar.
+ *
+ * Wrap your app root **once**. All `BottomSheet` instances automatically
+ * receive the correct `bottomInset` with no additional props.
  *
  * @example
  * ```tsx
  * <GestureHandlerRootView style={{ flex: 1 }}>
  *   <InsetScreen style={{ flex: 1 }}>
- *     <AppContent />
+ *     <YourApp />
  *   </InsetScreen>
- *   <BottomSheet bottomInset={bottomInset} />
+ *
+ *   {open && <BottomSheetPicker items={items} onSelect={pick} onClose={close} />}
  * </GestureHandlerRootView>
  * ```
  */
@@ -53,6 +61,8 @@ export function InsetScreen({
   children,
   ...rest
 }: InsetScreenProps) {
+  // Inset values are populated by the native view via the 'screenInsetsChanged'
+  // event (DeviceEventEmitter on Android, NativeEventEmitter on iOS).
   const { topInset, bottomInset } = useImmersiveMode();
 
   const insetStyle: ViewStyle = {
@@ -62,14 +72,17 @@ export function InsetScreen({
   };
 
   if (NativeInsetScreen == null) {
+    // Fallback for unsupported platforms — no native inset measurement.
     return (
-      <View style={[styles.fallback, insetStyle, style]} {...rest}>
+      <View style={[styles.screen, style]} {...rest}>
         {children}
       </View>
     );
   }
 
   return (
+    // The native view triggers inset events; the JS inner View applies padding.
+    // Splitting the two responsibilities keeps Yoga layout predictable.
     <NativeInsetScreen
       applyTopInset={applyTopInset}
       applyBottomInset={applyBottomInset}
@@ -83,5 +96,4 @@ export function InsetScreen({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  fallback: { flex: 1 },
 });

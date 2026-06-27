@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DeviceEventEmitter, Platform } from 'react-native';
+import { DeviceEventEmitter, NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import {
   getBottomInset,
   getTopInset,
@@ -14,6 +14,7 @@ let _topInset = 0;
 let _bottomInset = 0;
 /** Physical nav-bar height in dp — seeded once at launch, never cleared in immersive mode. */
 let _navBarHeight = 0;
+
 const _immersiveSubscribers = new Set<(value: boolean) => void>();
 const _insetSubscribers = new Set<() => void>();
 let _insetListenerRegistered = false;
@@ -70,29 +71,37 @@ function _seedInsets(attempt = 0) {
 }
 
 function _ensureInsetListener() {
-  if (_insetListenerRegistered || Platform.OS !== 'android') return;
+  if (_insetListenerRegistered) return;
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
   _insetListenerRegistered = true;
 
-  // Seed values before InsetScreen mounts and emits the first event.
+  // Seed values from native before the first InsetScreen event arrives.
   _seedInsets();
 
-  DeviceEventEmitter.addListener(
-    'screenInsetsChanged',
-    (event: { top?: number; bottom?: number }) => {
-      const top = event.top ?? 0;
-      const bottom = event.bottom ?? 0;
-      // InsetScreenView always measures correctly via getInsets() (no throw).
-      // Cache the non-zero bottom as the physical nav-bar height so it stays
-      // available while in immersive mode (where bottom is reported as 0).
-      if (bottom > 0) {
-        _navBarHeight = bottom;
-      }
-      if (top === _topInset && bottom === _bottomInset) return;
-      _topInset = top;
-      _bottomInset = bottom;
-      _broadcastInsets();
+  const handler = (event: { top?: number; bottom?: number }) => {
+    const top = event.top ?? 0;
+    const bottom = event.bottom ?? 0;
+    // Cache the non-zero bottom as the physical nav-bar / home-indicator height
+    // so it stays available while immersive mode hides the bar.
+    if (bottom > 0) _navBarHeight = bottom;
+    if (top === _topInset && bottom === _bottomInset) return;
+    _topInset = top;
+    _bottomInset = bottom;
+    _broadcastInsets();
+  };
+
+  if (Platform.OS === 'android') {
+    DeviceEventEmitter.addListener('screenInsetsChanged', handler);
+  } else {
+    // iOS: RNInsetScreenEmitter is an RCTEventEmitter — use NativeEventEmitter.
+    const { RNInsetScreenEmitter } = NativeModules;
+    if (RNInsetScreenEmitter) {
+      new NativeEventEmitter(RNInsetScreenEmitter).addListener(
+        'screenInsetsChanged',
+        handler
+      );
     }
-  );
+  }
 }
 
 // ── useImmersiveMode ──────────────────────────────────────────────────────────
