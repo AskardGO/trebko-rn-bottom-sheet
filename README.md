@@ -1,11 +1,3 @@
-# @trebko/rn-bottom-sheet
-
-A modern, performant bottom sheet library for **React Native 0.86+** with full **New Architecture (Fabric)** support.
-
-Built on top of [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/) and [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/) — all animations and gesture handling run on the UI thread at 60 FPS.
-
----
-
 <div align="center">
 
 ### ☕ Support the project
@@ -21,6 +13,14 @@ If this library saves you time, consider buying me a coffee!
 **[buymeacoffee.com/askard](https://buymeacoffee.com/askard)**
 
 </div>
+
+---
+
+# @trebko/rn-bottom-sheet
+
+A modern, performant bottom sheet library for **React Native 0.86+** with full **New Architecture (Fabric)** support.
+
+Built on top of [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/) and [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/) — all animations and gesture handling run on the UI thread at 60 FPS.
 
 ---
 
