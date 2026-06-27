@@ -10,24 +10,24 @@
     "postinstall": "node postinstall.js"
   },
   "dependencies": {
-    "react": "18.2.0",
-    "react-native": "0.74.0",
-    "react-native-gesture-handler": "2.16.2",
-    "react-native-reanimated": "3.15.5",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-gesture-handler": "3.0.2",
+    "react-native-reanimated": "4.5.0",
+    "react-native-worklets": "0.10.0",
     "@trebko/rn-bottom-sheet": "link:../"
   },
   "devDependencies": {
-    "@babel/core": "^7.23.0",
-    "@babel/preset-env": "^7.23.0",
-    "@babel/runtime": "^7.23.0",
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.3",
+    "@babel/runtime": "^7.25.0",
     "@react-native-community/cli": "^20.2.0",
     "@react-native-community/cli-platform-android": "^20.2.0",
     "@react-native-community/cli-platform-ios": "^20.2.0",
-    "@react-native/babel-preset": "^0.74.0",
-    "@react-native/metro-config": "^0.74.0",
-    "@react-native/typescript-config": "^0.74.0",
-    "@types/react": "^18.2.0",
-    "@types/react-test-renderer": "^18.0.0",
+    "@react-native/babel-preset": "0.86.0",
+    "@react-native/metro-config": "0.86.0",
+    "@react-native/typescript-config": "0.86.0",
+    "@types/react": "^19.1.1",
     "babel-plugin-module-resolver": "^5.0.0",
     "typescript": "^5.2.0"
   }
