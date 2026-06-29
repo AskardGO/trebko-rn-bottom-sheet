@@ -61,6 +61,7 @@ Built on top of [react-native-reanimated](https://docs.swmansion.com/react-nativ
   - [useImmersiveMode](#useimmersivemode)
   - [useImmersiveModeChange](#useimmersivemodechange)
   - [Low-level utilities](#low-level-utilities)
+- [BottomSheetPortal (global portal)](#bottomsheetportal-global-portal)
 - [Animation config](#animation-config)
 - [Tips & patterns](#tips--patterns)
 
@@ -624,6 +625,90 @@ Pass `animationConfigs` to customise the open/close animation. Spring and timing
 | `mass` | `number` | Spring mass. Higher = more inertia. Default: `0.9`. |
 | `duration` | `number` | Animation duration in ms. When provided, switches from `withSpring` to `withTiming`. |
 | `easing` | `EasingFunction` | Easing function from `react-native-reanimated`. Only used when `duration` is set. |
+
+---
+
+## BottomSheetPortal (global portal)
+
+By default `BottomSheet` uses `absoluteFill` relative to its **parent** in the React tree. If your sheet is rendered inside a `ScrollView`, a form, or a navigation screen, it will only cover that container — not the full screen.
+
+`BottomSheetPortal` solves this with a single setup change: wrap your app root once, then open any sheet from anywhere in the tree with `useSheet().open()`.
+
+### Setup (once per app)
+
+```tsx
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetPortal, InsetScreen } from '@trebko/rn-bottom-sheet';
+
+// index.tsx / App.tsx — root of your application
+export default function Root() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <BottomSheetPortal>
+        <InsetScreen style={{ flex: 1 }}>
+          <YourNavigator />
+        </InsetScreen>
+      </BottomSheetPortal>
+    </GestureHandlerRootView>
+  );
+}
+```
+
+> `BottomSheetPortal` must be a direct child of `GestureHandlerRootView` so that
+> gestures inside the sheet work correctly and the full-screen bounding box is respected.
+
+### Open a sheet from any component
+
+```tsx
+import { useSheet, BottomSheetPicker } from '@trebko/rn-bottom-sheet';
+
+function CityField() {
+  const { open } = useSheet();
+  const [city, setCity] = useState<string>();
+
+  return (
+    <TouchableOpacity
+      onPress={() =>
+        open((close) => (
+          <BottomSheetPicker
+            title="Місто"
+            items={cities}
+            value={city}
+            onSelect={(item) => { setCity(item); close(); }}
+            onClose={close}
+          />
+        ))
+      }
+    >
+      <Text>{city ?? 'Оберіть місто'}</Text>
+    </TouchableOpacity>
+  );
+}
+```
+
+`open()` receives a **render function** `(close) => ReactNode`. Pass `close` to `onClose` and `onSelect`/`onApply` — the sheet closes itself. All existing props (`renderItem`, `enableSearch`, `multiple`, etc.) work exactly as before.
+
+### Programmatic close
+
+```tsx
+const { close } = useSheet();
+// close the current sheet from anywhere
+<Button title="Cancel" onPress={close} />
+```
+
+### `BottomSheetPortal` props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `children` | `ReactNode` | — | Your app tree (navigation, screens, etc.). |
+| `style` | `StyleProp<ViewStyle>` | — | Extra styles for the root container View. |
+
+### `useSheet` return value
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `open` | `(render: (close: () => void) => ReactNode) => void` | Open any sheet at the portal level. |
+| `close` | `() => void` | Programmatically close the current sheet. |
 
 ---
 

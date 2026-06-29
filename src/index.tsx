@@ -1,4 +1,6 @@
 export { BottomSheet } from './BottomSheet';
+export { BottomSheetPortal, useSheet } from './BottomSheetPortal';
+export type { BottomSheetPortalProps, SheetContextValue } from './BottomSheetPortal';
 export { BottomSheetPicker } from './BottomSheetPicker';
 export { BottomSheetScrollView } from './BottomSheetScrollView';
 export { BottomSheetFlatList } from './BottomSheetFlatList';
