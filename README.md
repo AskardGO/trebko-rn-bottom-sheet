@@ -43,6 +43,8 @@ Built on top of [react-native-reanimated](https://docs.swmansion.com/react-nativ
 
 - [Installation](#installation)
 - [Quick start](#quick-start)
+  - [Step 1 — wrap your app root](#step-1--wrap-your-app-root-once)
+  - [Step 2 — open a sheet from anywhere](#step-2--open-a-sheet-from-anywhere)
 - [BottomSheet](#bottomsheet)
   - [Props](#bottomsheetprops)
   - [Imperative API (ref)](#imperative-api-ref)
@@ -87,27 +89,80 @@ Complete the peer dependency setup:
 
 ## Quick start
 
-Wrap your app root with `GestureHandlerRootView`. Render sheets as siblings of your main content so they cover the full screen.
+### Step 1 — wrap your app root (once)
+
+Add `BottomSheetPortal` inside `GestureHandlerRootView`. This makes every sheet in your app render full-screen regardless of where in the tree you call it.
 
 ```tsx
+// index.tsx / App.tsx — root of your app
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { BottomSheet, BottomSheetScrollView } from '@trebko/rn-bottom-sheet';
+import { BottomSheetPortal, InsetScreen } from '@trebko/rn-bottom-sheet';
 
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <MyScreen />
-
-      {/* Sheet renders on top via absoluteFill */}
-      <BottomSheet snapPoints={['40%', '90%']} onClose={() => {}}>
-        <BottomSheetScrollView>
-          <Text>Content here</Text>
-        </BottomSheetScrollView>
-      </BottomSheet>
+      <BottomSheetPortal>
+        <InsetScreen style={{ flex: 1 }}>
+          <YourNavigator />
+        </InsetScreen>
+      </BottomSheetPortal>
     </GestureHandlerRootView>
   );
 }
 ```
+
+> `InsetScreen` is optional but recommended — it broadcasts safe-area insets (home indicator, nav bar) to all sheets automatically on both Android and iOS.
+
+### Step 2 — open a sheet from anywhere
+
+Call `useSheet().open()` from any component, no matter how deeply nested. The sheet renders at the Portal level — always full-screen, always on top.
+
+```tsx
+import { useSheet, BottomSheetPicker } from '@trebko/rn-bottom-sheet';
+
+function CityField() {
+  const { open } = useSheet();
+  const [city, setCity] = useState<string>();
+
+  return (
+    <TouchableOpacity
+      onPress={() =>
+        open((close) => (
+          <BottomSheetPicker
+            title="Select city"
+            items={['Kyiv', 'Lviv', 'Kharkiv', 'Odesa']}
+            value={city}
+            onSelect={(item) => { setCity(item); close(); }}
+            onClose={close}
+          />
+        ))
+      }
+    >
+      <Text>{city ?? 'Select city'}</Text>
+    </TouchableOpacity>
+  );
+}
+```
+
+### Classic BottomSheet (without Portal)
+
+If you only need a sheet at root level, you can skip the Portal and render it directly as a sibling of your content:
+
+```tsx
+<GestureHandlerRootView style={{ flex: 1 }}>
+  <MyScreen />
+
+  {open && (
+    <BottomSheet snapPoints={['40%', '90%']} onClose={() => setOpen(false)}>
+      <BottomSheetScrollView>
+        <Text>Content here</Text>
+      </BottomSheetScrollView>
+    </BottomSheet>
+  )}
+</GestureHandlerRootView>
+```
+
+> This only works correctly when the sheet is at the **root level** of the tree. If you nest it inside a `ScrollView`, form, or screen component, use the Portal approach above.
 
 ---
 
