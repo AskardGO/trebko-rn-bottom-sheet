@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { BottomSheet } from './BottomSheet';
 import { BottomSheetFlatList } from './BottomSheetFlatList';
+import { useImmersiveMode } from './useImmersiveMode';
 import type { BottomSheetMethods, BottomSheetProps } from './types';
 import { resolveSize } from './utils';
 
@@ -100,6 +101,18 @@ export interface BottomSheetPickerProps<TItem = string>
   // ── Search ────────────────────────────────────────────────────────────────
   enableSearch?: boolean;
   searchPlaceholder?: string;
+  /**
+   * Controlled value for the search input.
+   * Use together with `onSearchChange` for API-based (server-side) search where
+   * the displayed items change based on the query rather than being filtered locally.
+   * When omitted the picker manages search state internally.
+   */
+  searchValue?: string;
+  /**
+   * Called on every keystroke in the search input.
+   * Use to update the `items` prop based on the query (API search pattern).
+   */
+  onSearchChange?: (text: string) => void;
   /** Extra props forwarded verbatim to the internal TextInput. */
   searchInputProps?: Omit<TextInputProps, 'value' | 'onChangeText' | 'placeholder'>;
 
@@ -194,6 +207,8 @@ export function BottomSheetPicker<TItem = string>({
   // search
   enableSearch = false,
   searchPlaceholder = 'Search...',
+  searchValue: searchValueProp,
+  onSearchChange,
   searchInputProps,
   // header
   title,
@@ -223,14 +238,25 @@ export function BottomSheetPicker<TItem = string>({
   ...sheetProps
 }: BottomSheetPickerProps<TItem>) {
   const { height: screenHeight } = useWindowDimensions();
-  const [query, setQuery] = useState('');
+  // When searchValue is provided externally the picker is in controlled-search mode:
+  // the query is owned by the caller, items should already be pre-filtered.
+  // In uncontrolled mode the picker filters items locally.
+  const isControlledSearch = searchValueProp !== undefined;
+  const [internalQuery, setInternalQuery] = useState('');
+  const query = isControlledSearch ? searchValueProp : internalQuery;
+  const setQuery = isControlledSearch
+    ? (text: string) => onSearchChange?.(text)
+    : setInternalQuery;
   const searchRef = useRef<TextInput>(null);
   const sheetRef = useRef<BottomSheetMethods>(null);
+
+  // Read immersive state from the module-level hook; explicit sheetProps take precedence.
+  const { isImmersive: hookIsImmersive, bottomInset: hookBottomInset } = useImmersiveMode();
+  const isImmersive: boolean = (sheetProps as { isImmersive?: boolean }).isImmersive ?? hookIsImmersive;
 
   // Mirror BottomSheet's effectiveScreenH logic: when immersive is active the
   // nav bar is hidden and physScreenH is the reliable source of truth.
   const physScreenH = useMemo(() => Dimensions.get('screen').height, []);
-  const isImmersive: boolean = (sheetProps as { isImmersive?: boolean }).isImmersive ?? false;
   const effectiveScreenH = isImmersive ? physScreenH : screenHeight;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -287,11 +313,14 @@ export function BottomSheetPicker<TItem = string>({
   }, [onApply, values]);
 
   // ── Filtering ─────────────────────────────────────────────────────────────
+  // In controlled-search mode items are already filtered by the caller (API search).
+  // In uncontrolled mode filter locally by label.
   const filteredItems = useMemo(() => {
+    if (isControlledSearch) return items;
     const q = query.trim().toLowerCase();
     if (!q) return items;
     return items.filter((item) => getLabel(item).toLowerCase().includes(q));
-  }, [items, query, getLabel]);
+  }, [isControlledSearch, items, query, getLabel]);
 
   // ── Height pre-calculation ─────────────────────────────────────────────────
   const maxHeightPx = useMemo(
@@ -299,8 +328,8 @@ export function BottomSheetPicker<TItem = string>({
     [maxHeight, effectiveScreenH]
   );
 
-  // Destructure bottomInset from sheetProps (forwarded to <BottomSheet> via {...sheetProps}).
-  const bottomInset: number = (sheetProps as { bottomInset?: number }).bottomInset ?? 0;
+  // bottomInset for overhead calculation: explicit sheetProp overrides hook value.
+  const bottomInset: number = (sheetProps as { bottomInset?: number }).bottomInset ?? hookBottomInset;
 
   // Mirror the library's own effectiveBottomInset logic:
   // only apply the inset when the window is in edge-to-edge mode.

@@ -18,7 +18,6 @@ import { SHEET_STYLE } from '../shared/utils/sheetStyle';
 // ─── Demo catalogue entry ────────────────────────────────────────────────────
 
 export const MULTI_PICKER_DEMO = {
-  key: 'multi' as const,
   title: 'Multi-select · 20 items',
   subtitle: 'Sheet stays open · tap Done to confirm',
 };
@@ -29,17 +28,9 @@ interface Props {
   values: string[];
   onValuesChange: (items: string[]) => void;
   onClose: () => void;
-  bottomInset?: number;
-  isImmersive?: boolean;
 }
 
-export function MultiPickerSheet({
-  values,
-  onValuesChange,
-  onClose,
-  bottomInset = 0,
-  isImmersive = false,
-}: Props) {
+export function MultiPickerSheet({ values, onValuesChange, onClose }: Props) {
   return (
     <BottomSheetPicker
       title="Select cities"
@@ -49,8 +40,6 @@ export function MultiPickerSheet({
       onValuesChange={onValuesChange}
       applyButtonLabel="Done"
       onClose={onClose}
-      bottomInset={bottomInset}
-      isImmersive={isImmersive}
       style={SHEET_STYLE}
     />
   );

@@ -12,7 +12,6 @@ import { SHEET_STYLE } from '../shared/utils/sheetStyle';
 // ─── Demo catalogue entry ────────────────────────────────────────────────────
 
 export const CLASSIC_DEMO = {
-  key: 'classic' as const,
   title: 'Classic snap points',
   subtitle: '3 snap points · drag handle to resize or close',
 };
@@ -21,11 +20,9 @@ export const CLASSIC_DEMO = {
 
 interface Props {
   onClose: () => void;
-  bottomInset?: number;
-  isImmersive?: boolean;
 }
 
-export function ClassicSheet({ onClose, bottomInset = 0, isImmersive = false }: Props) {
+export function ClassicSheet({ onClose }: Props) {
   return (
     <BottomSheet
       snapPoints={['40%', '70%', '95%']}
@@ -33,8 +30,6 @@ export function ClassicSheet({ onClose, bottomInset = 0, isImmersive = false }: 
       enableBackdrop
       backdropOpacity={0.6}
       enablePanDownToClose
-      bottomInset={bottomInset}
-      isImmersive={isImmersive}
       onClose={onClose}
       style={SHEET_STYLE}
     >

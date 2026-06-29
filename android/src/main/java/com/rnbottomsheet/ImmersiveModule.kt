@@ -13,7 +13,6 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
-import com.facebook.react.modules.core.DeviceEventManagerModule
 
 class ImmersiveModule(private val ctx: ReactApplicationContext) :
     ReactContextBaseJavaModule(ctx), LifecycleEventListener {
@@ -31,9 +30,9 @@ class ImmersiveModule(private val ctx: ReactApplicationContext) :
     // the host app's MainActivity.onWindowFocusChanged.
 
     override fun onHostResume() {
-        if (_isImmersive) {
-            currentActivity?.let { applyImmersive(it, true) }
-        }
+        val activity = reactApplicationContext.currentActivity ?: return
+        applyImmersive(activity, _isImmersive)
+        activity.window.decorView.post { InsetScreenRegistry.requestApplyInsetsAll() }
     }
 
     override fun onHostPause() {}
@@ -47,7 +46,7 @@ class ImmersiveModule(private val ctx: ReactApplicationContext) :
     @ReactMethod
     fun setImmersive(enabled: Boolean) {
         _isImmersive = enabled
-        val activity = currentActivity ?: return
+        val activity = reactApplicationContext.currentActivity ?: return
         activity.runOnUiThread {
             applyImmersive(activity, enabled)
             val decorView = activity.window.decorView
@@ -62,9 +61,11 @@ class ImmersiveModule(private val ctx: ReactApplicationContext) :
                     override fun onGlobalLayout() {
                         decorView.viewTreeObserver.removeOnGlobalLayoutListener(this)
                         notifyDimensionsChanged(activity)
+                        InsetScreenRegistry.requestApplyInsetsAll()
                     }
                 }
             )
+            decorView.post { InsetScreenRegistry.requestApplyInsetsAll() }
         }
     }
 
@@ -75,17 +76,18 @@ class ImmersiveModule(private val ctx: ReactApplicationContext) :
      */
     @ReactMethod
     fun getBottomInset(promise: Promise) {
-        val activity = currentActivity
+        val activity = reactApplicationContext.currentActivity
         if (activity == null) { promise.resolve(0.0); return }
         activity.runOnUiThread {
             try {
                 val decorView = activity.window.decorView
                 val insets = ViewCompat.getRootWindowInsets(decorView)
-                val nav = insets?.getInsetsIgnoringVisibility(
-                    WindowInsetsCompat.Type.navigationBars()
+                val bottomPx = InsetUtils.hardwareNavigationBarHeightPx(
+                    insets,
+                    activity.resources,
                 )
                 val density = activity.resources.displayMetrics.density
-                promise.resolve((nav?.bottom ?: 0) / density.toDouble())
+                promise.resolve(bottomPx / density.toDouble())
             } catch (e: Exception) {
                 promise.resolve(0.0)
             }
@@ -99,7 +101,7 @@ class ImmersiveModule(private val ctx: ReactApplicationContext) :
      */
     @ReactMethod
     fun getTopInset(promise: Promise) {
-        val activity = currentActivity
+        val activity = reactApplicationContext.currentActivity
         if (activity == null) { promise.resolve(0.0); return }
         activity.runOnUiThread {
             try {
@@ -145,8 +147,7 @@ class ImmersiveModule(private val ctx: ReactApplicationContext) :
                 putMap("screen", dimensMap(real.widthPixels, real.heightPixels))
             }
 
-            ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                .emit("didUpdateDimensions", payload)
+            ctx.emitDeviceEvent("didUpdateDimensions", payload)
         } catch (_: Exception) {
             // Best-effort — skip if bridge is torn down.
         }
@@ -163,9 +164,14 @@ class ImmersiveModule(private val ctx: ReactApplicationContext) :
         var _isImmersive = false
             private set
 
+        /** Whether immersive mode is active (nav bar hidden). */
+        val isImmersive: Boolean
+            get() = _isImmersive
+
         fun applyImmersive(activity: Activity, enabled: Boolean) {
             val window = activity.window ?: return
-            WindowCompat.setDecorFitsSystemWindows(window, !enabled)
+            // Stay edge-to-edge; [InsetScreenView] applies padding from window insets.
+            WindowCompat.setDecorFitsSystemWindows(window, false)
             val controller = WindowInsetsControllerCompat(window, window.decorView)
             if (enabled) {
                 controller.hide(WindowInsetsCompat.Type.navigationBars())
@@ -174,6 +180,7 @@ class ImmersiveModule(private val ctx: ReactApplicationContext) :
             } else {
                 controller.show(WindowInsetsCompat.Type.navigationBars())
             }
+            window.decorView.post { InsetScreenRegistry.requestApplyInsetsAll() }
         }
 
         /**
@@ -190,7 +197,7 @@ class ImmersiveModule(private val ctx: ReactApplicationContext) :
          * the dev menu close — events that are not covered by LifecycleEventListener.
          */
         fun reapplyIfNeeded(activity: Activity) {
-            if (_isImmersive) applyImmersive(activity, true)
+            applyImmersive(activity, _isImmersive)
         }
     }
 }

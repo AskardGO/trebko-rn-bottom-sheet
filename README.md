@@ -1,6 +1,24 @@
-# rn-bottom-sheet
+<div align="center">
 
-A modern, performant bottom sheet library for React Native with full **New Architecture (Fabric)** support.
+### ☕ Support the project
+
+If this library saves you time, consider buying me a coffee!
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/askard)
+
+<a href="https://buymeacoffee.com/askard">
+  <img src="docs/bmc-qr.png" width="160" alt="Scan to buy me a coffee" />
+</a>
+
+**[buymeacoffee.com/askard](https://buymeacoffee.com/askard)**
+
+</div>
+
+---
+
+# @trebko/rn-bottom-sheet
+
+A modern, performant bottom sheet library for **React Native 0.86+** with full **New Architecture (Fabric)** support.
 
 Built on top of [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/) and [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/) — all animations and gesture handling run on the UI thread at 60 FPS.
 
@@ -13,7 +31,9 @@ Built on top of [react-native-reanimated](https://docs.swmansion.com/react-nativ
 - **Keyboard avoidance** — sheet lifts above the software keyboard frame-perfectly
 - **Picker component** — single-select, multi-select, searchable, fully customisable rows
 - **Custom scroll indicator** — animated thumb, no native flicker
-- **Immersive mode (Android)** — hide the navigation bar with hooks and a native module
+- **Immersive mode (Android)** — hide the navigation bar; `InsetScreen` + `useImmersiveMode` handle insets automatically
+- **Edge-to-edge (Android 15+)** — robust bottom-inset resolution; `BottomSheet` reads `navBarHeight` automatically — zero boilerplate
+- **iOS safe-area insets** — `InsetScreen` reads `UIWindow.safeAreaInsets` natively (no third-party deps); home indicator / notch / Dynamic Island handled automatically
 - **TypeScript** — fully typed API, generic `BottomSheetFlatList<T>`
 - **New Architecture ready** — Fabric + Turbo Modules compatible
 
@@ -23,6 +43,8 @@ Built on top of [react-native-reanimated](https://docs.swmansion.com/react-nativ
 
 - [Installation](#installation)
 - [Quick start](#quick-start)
+  - [Step 1 — wrap your app root](#step-1--wrap-your-app-root-once)
+  - [Step 2 — open a sheet from anywhere](#step-2--open-a-sheet-from-anywhere)
 - [BottomSheet](#bottomsheet)
   - [Props](#bottomsheetprops)
   - [Imperative API (ref)](#imperative-api-ref)
@@ -37,11 +59,16 @@ Built on top of [react-native-reanimated](https://docs.swmansion.com/react-nativ
 - [ScrollIndicator](#scrollindicator)
 - [Immersive mode (Android)](#immersive-mode-android)
   - [Native setup](#native-setup)
+  - [InsetScreen](#insetscreen)
   - [useImmersiveMode](#useimmersivemode)
   - [useImmersiveModeChange](#useimmersivemodechange)
   - [Low-level utilities](#low-level-utilities)
+- [BottomSheetPortal (global portal)](#bottomsheetportal-global-portal)
 - [Animation config](#animation-config)
 - [Tips & patterns](#tips--patterns)
+  - [Conditionally mount the sheet](#conditionally-mount-the-sheet)
+  - [API search (searchValue / onSearchChange)](#domain-specific-picker-with-forwardref--portal)
+  - [forwardRef + Portal pattern](#domain-specific-picker-with-forwardref--portal)
 
 ---
 
@@ -56,31 +83,86 @@ Complete the peer dependency setup:
 - **Reanimated** → [getting started guide](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started)
 - **Gesture Handler** → [installation guide](https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation)
 
+> iOS safe-area insets (home indicator, notch, Dynamic Island) are handled automatically by the library's own native code — no additional packages needed.
+
 ---
 
 ## Quick start
 
-Wrap your app root with `GestureHandlerRootView`. Render sheets as siblings of your main content so they cover the full screen.
+### Step 1 — wrap your app root (once)
+
+Add `BottomSheetPortal` inside `GestureHandlerRootView`. This makes every sheet in your app render full-screen regardless of where in the tree you call it.
 
 ```tsx
+// index.tsx / App.tsx — root of your app
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { BottomSheet, BottomSheetScrollView } from '@trebko/rn-bottom-sheet';
+import { BottomSheetPortal, InsetScreen } from '@trebko/rn-bottom-sheet';
 
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <MyScreen />
-
-      {/* Sheet renders on top via absoluteFill */}
-      <BottomSheet snapPoints={['40%', '90%']} onClose={() => {}}>
-        <BottomSheetScrollView>
-          <Text>Content here</Text>
-        </BottomSheetScrollView>
-      </BottomSheet>
+      <BottomSheetPortal>
+        <InsetScreen style={{ flex: 1 }}>
+          <YourNavigator />
+        </InsetScreen>
+      </BottomSheetPortal>
     </GestureHandlerRootView>
   );
 }
 ```
+
+> `InsetScreen` is optional but recommended — it broadcasts safe-area insets (home indicator, nav bar) to all sheets automatically on both Android and iOS.
+
+### Step 2 — open a sheet from anywhere
+
+Call `useSheet().open()` from any component, no matter how deeply nested. The sheet renders at the Portal level — always full-screen, always on top.
+
+```tsx
+import { useSheet, BottomSheetPicker } from '@trebko/rn-bottom-sheet';
+
+function CityField() {
+  const { open } = useSheet();
+  const [city, setCity] = useState<string>();
+
+  return (
+    <TouchableOpacity
+      onPress={() =>
+        open((close) => (
+          <BottomSheetPicker
+            title="Select city"
+            items={['Kyiv', 'Lviv', 'Kharkiv', 'Odesa']}
+            value={city}
+            onSelect={(item) => { setCity(item); close(); }}
+            onClose={close}
+          />
+        ))
+      }
+    >
+      <Text>{city ?? 'Select city'}</Text>
+    </TouchableOpacity>
+  );
+}
+```
+
+### Classic BottomSheet (without Portal)
+
+If you only need a sheet at root level, you can skip the Portal and render it directly as a sibling of your content:
+
+```tsx
+<GestureHandlerRootView style={{ flex: 1 }}>
+  <MyScreen />
+
+  {open && (
+    <BottomSheet snapPoints={['40%', '90%']} onClose={() => setOpen(false)}>
+      <BottomSheetScrollView>
+        <Text>Content here</Text>
+      </BottomSheetScrollView>
+    </BottomSheet>
+  )}
+</GestureHandlerRootView>
+```
+
+> This only works correctly when the sheet is at the **root level** of the tree. If you nest it inside a `ScrollView`, form, or screen component, use the Portal approach above.
 
 ---
 
@@ -136,8 +218,9 @@ function Example() {
 | `backdropOpacity` | `number` | `0.5` | Max backdrop opacity (0–1). Driven by sheet position — no extra animation. |
 | `enablePanDownToClose` | `boolean` | `true` | Allow the handle to be dragged down to close the sheet. |
 | `enableHandlePanningGesture` | `boolean` | `true` | Enable the pan gesture on the handle. |
-| `bottomInset` | `number` | `0` | Bottom safe-area inset in dp. Passed to scroll children as `paddingBottom` so list items aren't hidden behind the nav bar. |
-| `isImmersive` | `boolean` | `false` | Pass `true` while Android immersive mode (nav bar hidden) is active. Uses physical screen height for positioning to avoid the gap that appears before `useWindowDimensions` updates. |
+| `bottomInset` | `number` | auto¹ | Bottom safe-area inset in dp. Auto-read from `useImmersiveMode()` — only pass explicitly to override (e.g. iOS `useSafeAreaInsets().bottom`). |
+| `isImmersive` | `boolean` | auto¹ | Whether Android immersive mode (nav bar hidden) is active. Auto-read from `useImmersiveMode()`. |
+| `navBarHeight` | `number` | auto¹ | Physical nav-bar height in dp. Auto-read from `useImmersiveMode()`. Used to pad scroll content when immersive + keyboard opens. |
 | `enableKeyboardAvoid` | `boolean` | `true` | Lift the sheet above the software keyboard. The sheet top stays fixed; only the content area shrinks. |
 | `animationConfigs` | `AnimationConfig` | — | Fine-tune open/close animation (spring or timing). |
 | `animatedPosition` | `SharedValue<number>` | — | External shared value mirroring the sheet's `translateY`. Drive parallel animations from it. |
@@ -147,6 +230,8 @@ function Example() {
 | `style` | `StyleProp<ViewStyle>` | — | Extra styles on the sheet container. Override `backgroundColor`, `borderTopLeftRadius`, shadows, etc. |
 
 > `SnapPoint` is `number | string`. Examples: `300`, `'50%'`, `'90%'`.
+>
+> ¹ **auto** — value is read automatically from the module-level `useImmersiveMode()` singleton. Wrap your app root in `<InsetScreen>` once and these props never need to be passed explicitly on Android.
 
 ### Imperative API (ref)
 
@@ -253,12 +338,38 @@ import { BottomSheetPicker } from '@trebko/rn-bottom-sheet';
 
 ### Search
 
+Local filter (default — items filtered inside the picker):
+
 ```tsx
 <BottomSheetPicker
   title="Select city"
   items={cities}
   enableSearch
   searchPlaceholder="Search cities…"
+  onSelect={setSelected}
+  onClose={() => setOpen(false)}
+/>
+```
+
+API / server-side search — pass `searchValue` + `onSearchChange`, update `items` externally:
+
+```tsx
+const [query, setQuery] = useState('');
+const [results, setResults] = useState<City[]>([]);
+
+useEffect(() => {
+  if (query.length < 2) { setResults([]); return; }
+  fetchCities(query).then(setResults);
+}, [query]);
+
+<BottomSheetPicker
+  title="Select city"
+  items={results}            // pre-filtered by API — local filter is skipped
+  enableSearch
+  searchValue={query}        // controlled
+  onSearchChange={setQuery}  // update query → re-fetch → update items
+  searchPlaceholder="Enter city name…"
+  listEmptyComponent={<MyEmptyState query={query} />}
   onSelect={setSelected}
   onClose={() => setOpen(false)}
 />
@@ -322,6 +433,8 @@ function CityRow({ item, isSelected, onSelect }: PickerRenderItemInfo<string>) {
 |------|------|---------|-------------|
 | `enableSearch` | `boolean` | `false` | Render a search input above the list. |
 | `searchPlaceholder` | `string` | `'Search...'` | Placeholder text. |
+| `searchValue` | `string` | — | **Controlled** search value. Use with `onSearchChange` for API / server-side search. When provided, local item filtering is skipped — pass pre-filtered `items` instead. |
+| `onSearchChange` | `(text: string) => void` | — | Fired on every keystroke. Update `items` based on the query to implement API search. |
 | `searchInputProps` | `TextInputProps` | — | Extra props forwarded to the `TextInput` (excluding `value` and `onChangeText`). |
 
 #### Header
@@ -439,39 +552,67 @@ This handles the case where Android resets the nav bar after a dialog, permissio
 
 ---
 
+### `InsetScreen`
+
+A screen wrapper that measures system-bar insets and broadcasts them to every `BottomSheet` in the tree — wrap your root once and all sheets adjust automatically, with zero prop drilling.
+
+| Platform | How insets are measured |
+|----------|------------------------|
+| **Android** | `WindowInsetsCompat` in Kotlin — handles immersive mode, edge-to-edge, Android 15+ nav bar |
+| **iOS** | `UIWindow.safeAreaInsets` in Objective-C — handles home indicator, notch, Dynamic Island, iPad |
+
+No third-party dependencies required on either platform.
+
+```tsx
+import { InsetScreen } from '@trebko/rn-bottom-sheet';
+
+<GestureHandlerRootView style={{ flex: 1 }}>
+  <InsetScreen style={{ flex: 1 }}>
+    <YourApp />
+  </InsetScreen>
+
+  {/* Sheets auto-read insets on both Android and iOS */}
+  {open && <BottomSheetPicker items={items} onSelect={pick} onClose={close} />}
+</GestureHandlerRootView>
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `applyTopInset` | `boolean` | `true` | Apply `paddingTop` equal to the status-bar / cutout / notch height. |
+| `applyBottomInset` | `boolean` | `true` | Apply `paddingBottom` equal to the nav-bar / home-indicator height. |
+| All `ViewProps` | — | — | Forwarded to the underlying View. |
+
+---
+
 ### `useImmersiveMode`
 
 The primary hook. Manages immersive state globally — toggling in one component instantly updates every other subscriber.
 
 ```tsx
-import { useImmersiveMode } from '@trebko/rn-bottom-sheet';
+import { InsetScreen, useImmersiveMode, BottomSheetPicker } from '@trebko/rn-bottom-sheet';
 
-function Screen() {
-  const {
-    isImmersive,   // boolean — is the nav bar currently hidden?
-    setImmersive,  // (enabled: boolean) => void
-    toggle,        // () => void
-    topInset,      // number — paddingTop for the root View
-    bottomInset,   // number — paddingBottom for sheets / scroll views
-    isSupported,   // boolean — true on Android when the module is linked
-  } = useImmersiveMode();
+function App() {
+  const { isImmersive, setImmersive, isSupported } = useImmersiveMode();
 
   return (
-    <View style={{ flex: 1, paddingTop: topInset }}>
-      {isSupported && (
-        <Switch value={isImmersive} onValueChange={setImmersive} />
-      )}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* InsetScreen applies paddingTop/paddingBottom for system bars */}
+      <InsetScreen style={{ flex: 1 }}>
+        <MyContent />
+        {isSupported && (
+          <Switch value={isImmersive} onValueChange={setImmersive} />
+        )}
+      </InsetScreen>
 
+      {/* BottomSheet auto-reads isImmersive, bottomInset, navBarHeight — no props needed */}
       {open && (
-        <BottomSheet
-          bottomInset={bottomInset}
-          isImmersive={isImmersive}
+        <BottomSheetPicker
+          items={cities}
+          onSelect={setCity}
           onClose={() => setOpen(false)}
-        >
-          ...
-        </BottomSheet>
+        />
       )}
-    </View>
+    </GestureHandlerRootView>
   );
 }
 ```
@@ -573,6 +714,90 @@ Pass `animationConfigs` to customise the open/close animation. Spring and timing
 
 ---
 
+## BottomSheetPortal (global portal)
+
+By default `BottomSheet` uses `absoluteFill` relative to its **parent** in the React tree. If your sheet is rendered inside a `ScrollView`, a form, or a navigation screen, it will only cover that container — not the full screen.
+
+`BottomSheetPortal` solves this with a single setup change: wrap your app root once, then open any sheet from anywhere in the tree with `useSheet().open()`.
+
+### Setup (once per app)
+
+```tsx
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetPortal, InsetScreen } from '@trebko/rn-bottom-sheet';
+
+// index.tsx / App.tsx — root of your application
+export default function Root() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <BottomSheetPortal>
+        <InsetScreen style={{ flex: 1 }}>
+          <YourNavigator />
+        </InsetScreen>
+      </BottomSheetPortal>
+    </GestureHandlerRootView>
+  );
+}
+```
+
+> `BottomSheetPortal` must be a direct child of `GestureHandlerRootView` so that
+> gestures inside the sheet work correctly and the full-screen bounding box is respected.
+
+### Open a sheet from any component
+
+```tsx
+import { useSheet, BottomSheetPicker } from '@trebko/rn-bottom-sheet';
+
+function CityField() {
+  const { open } = useSheet();
+  const [city, setCity] = useState<string>();
+
+  return (
+    <TouchableOpacity
+      onPress={() =>
+        open((close) => (
+          <BottomSheetPicker
+            title="Місто"
+            items={cities}
+            value={city}
+            onSelect={(item) => { setCity(item); close(); }}
+            onClose={close}
+          />
+        ))
+      }
+    >
+      <Text>{city ?? 'Оберіть місто'}</Text>
+    </TouchableOpacity>
+  );
+}
+```
+
+`open()` receives a **render function** `(close) => ReactNode`. Pass `close` to `onClose` and `onSelect`/`onApply` — the sheet closes itself. All existing props (`renderItem`, `enableSearch`, `multiple`, etc.) work exactly as before.
+
+### Programmatic close
+
+```tsx
+const { close } = useSheet();
+// close the current sheet from anywhere
+<Button title="Cancel" onPress={close} />
+```
+
+### `BottomSheetPortal` props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `children` | `ReactNode` | — | Your app tree (navigation, screens, etc.). |
+| `style` | `StyleProp<ViewStyle>` | — | Extra styles for the root container View. |
+
+### `useSheet` return value
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `open` | `(render: (close: () => void) => ReactNode) => void` | Open any sheet at the portal level. |
+| `close` | `() => void` | Programmatically close the current sheet. |
+
+---
+
 ## Tips & patterns
 
 ### Conditionally mount the sheet
@@ -627,6 +852,93 @@ const rBackdrop = useAnimatedStyle(() => ({
 <Animated.View style={[StyleSheet.absoluteFill, rBackdrop, { backgroundColor: 'black' }]} />
 ```
 
+### Domain-specific picker with forwardRef + Portal
+
+The recommended real-world pattern: wrap `BottomSheetPicker` in a domain component that exposes only an `open()` method. The component renders `null` — the Portal renders the sheet full-screen at root level.
+
+```tsx
+import { forwardRef, useCallback, useImperativeHandle, useState, useEffect } from 'react';
+import { BottomSheetPicker, useSheet } from '@trebko/rn-bottom-sheet';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface City { id: number; name: string; region: string; }
+
+export interface CityPickerHandle { open: () => void; }
+interface CityPickerProps {
+  selectedId?: number | null;
+  onSelect: (city: City) => void;
+}
+
+// ── Internal component: mounted by Portal, manages its own search state ───────
+
+function CityPickerContent({ selectedId, onSelect, onClose }: CityPickerProps & { onClose: () => void }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<City[]>([]);
+
+  useEffect(() => {
+    if (query.length < 2) { setResults([]); return; }
+    const t = setTimeout(() => fetchCities(query).then(setResults), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  return (
+    <BottomSheetPicker<City>
+      title="City"
+      items={results}
+      value={results.find(c => c.id === selectedId)}
+      enableSearch
+      searchValue={query}
+      onSearchChange={setQuery}
+      searchPlaceholder="Enter city name…"
+      getItemLabel={c => c.name}
+      keyExtractor={c => String(c.id)}
+      onSelect={(city) => { onSelect(city); onClose(); }}
+      onClose={onClose}
+    />
+  );
+}
+
+// ── Public controller: renders null, opens via Portal ─────────────────────────
+
+export const CityPicker = forwardRef<CityPickerHandle, CityPickerProps>(
+  function CityPicker({ selectedId, onSelect }, ref) {
+    const { open } = useSheet();
+
+    useImperativeHandle(ref, () => ({
+      open: () => open((close) => (
+        <CityPickerContent
+          selectedId={selectedId}
+          onSelect={onSelect}
+          onClose={close}
+        />
+      )),
+    }), [open, selectedId, onSelect]);
+
+    return null;
+  }
+);
+```
+
+Usage in a form — the sheet opens full-screen regardless of how deep the form is nested:
+
+```tsx
+function ShippingForm() {
+  const [city, setCity] = useState<City>();
+  const cityRef = useRef<CityPickerHandle>(null);
+
+  return (
+    <ScrollView>
+      <CityPicker ref={cityRef} selectedId={city?.id} onSelect={setCity} />
+
+      <TouchableOpacity onPress={() => cityRef.current?.open()}>
+        <Text>{city?.name ?? 'Select city'}</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+```
+
 ---
 
 ## License
@@ -635,4 +947,4 @@ MIT
 
 ---
 
-Made with ❤️ by [Trebko](https://github.com/trebko)
+Made with ❤️ by [Trebko](https://github.com/AskardGO) · [☕ Buy me a coffee](https://buymeacoffee.com/askard)

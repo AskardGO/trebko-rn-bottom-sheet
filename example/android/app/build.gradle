@@ -4,17 +4,14 @@ apply plugin: "com.facebook.react"
 
 react {
     entryFile = file("../../index.js")
+    // Yarn workspaces hoist react-native to the monorepo root.
+    root = file("../../")
+    reactNativeDir = file("../../../node_modules/react-native")
+    codegenDir = file("../../../node_modules/@react-native/codegen")
+    autolinkLibrariesWithApp()
 }
 
 def enableProguardInReleaseBuilds = false
-def jscFlavor = 'org.webkit:android-jsc:+'
-
-configurations.all {
-    resolutionStrategy {
-        force 'androidx.core:core:1.13.1'
-        force 'androidx.core:core-ktx:1.13.1'
-    }
-}
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -57,14 +54,5 @@ dependencies {
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
-    } else {
-        implementation jscFlavor
-    }
-
-    debugImplementation("com.facebook.flipper:flipper:0.182.0")
-    debugImplementation("com.facebook.flipper:flipper-network-plugin:0.182.0") {
-        exclude group:'com.squareup.okhttp3', module:'okhttp'
     }
 }
-
-apply from: file("../../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)

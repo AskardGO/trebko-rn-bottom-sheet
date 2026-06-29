@@ -6,10 +6,10 @@ module.exports = {
       {
         extensions: ['.tsx', '.ts', '.js', '.json'],
         alias: {
-          'rn-bottom-sheet': '../src/index',
+          '@trebko/rn-bottom-sheet': '../src/index',
         },
       },
     ],
-    'react-native-reanimated/plugin', // Must be last!
+    'react-native-worklets/plugin', // Must be last! (Reanimated 4 uses worklets plugin)
   ],
 };

@@ -1,4 +1,6 @@
 export { BottomSheet } from './BottomSheet';
+export { BottomSheetPortal, useSheet } from './BottomSheetPortal';
+export type { BottomSheetPortalProps, SheetContextValue } from './BottomSheetPortal';
 export { BottomSheetPicker } from './BottomSheetPicker';
 export { BottomSheetScrollView } from './BottomSheetScrollView';
 export { BottomSheetFlatList } from './BottomSheetFlatList';
@@ -26,5 +28,11 @@ export {
   getTopInset,
   isImmersiveModeSupported,
 } from './ImmersiveMode';
-export { useImmersiveMode, useImmersiveModeChange } from './useImmersiveMode';
+export {
+  useImmersiveMode,
+  useImmersiveModeChange,
+  getNavBarHeight,
+} from './useImmersiveMode';
 export type { UseImmersiveModeReturn } from './useImmersiveMode';
+export { InsetScreen } from './InsetScreen';
+export type { InsetScreenProps } from './InsetScreen';

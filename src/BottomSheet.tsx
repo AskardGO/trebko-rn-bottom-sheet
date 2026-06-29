@@ -27,6 +27,7 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import type { BottomSheetProps, BottomSheetMethods } from './types';
 import { BottomSheetContext } from './BottomSheetContext';
+import { useImmersiveMode } from './useImmersiveMode';
 import { resolveSize, INITIAL_SCREEN_HEIGHT } from './utils';
 
 // handle paddingTop(12) + handle(4) + paddingBottom(8) + gap(8) = 32
@@ -62,8 +63,9 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
       enablePanDownToClose = true,
       enableKeyboardAvoid = true,
       enableHandlePanningGesture = true,
-      bottomInset = 0,
-      isImmersive = false,
+      bottomInset: bottomInsetProp,
+      isImmersive: isImmersiveProp,
+      navBarHeight: navBarHeightProp,  // stored separately so the hook value becomes the default
       onChange,
       onClose,
       animationConfigs = {},
@@ -74,6 +76,17 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
     },
     ref
   ) => {
+    // Read immersive state and insets from the module-level hook.
+    // Explicit props take precedence (allowing per-sheet overrides on iOS etc.).
+    const {
+      isImmersive: hookIsImmersive,
+      bottomInset: hookBottomInset,
+      navBarHeight: hookNavBarHeight,
+    } = useImmersiveMode();
+    const isImmersive = isImmersiveProp ?? hookIsImmersive;
+    const bottomInset = bottomInsetProp ?? hookBottomInset;
+    const navBarHeight = navBarHeightProp ?? hookNavBarHeight;
+
     // Reactive screen height — updates automatically on rotation, immersive mode
     // toggle, multi-window resize, or any other window dimension change.
     const { height: screenHeight } = useWindowDimensions();
@@ -145,6 +158,10 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
     const currentIndex = useSharedValue(initialSnapPointIndex);
     // These mirror JS state so worklets can read them without closures
     const keyboardHeightSV = useSharedValue(0);
+    // Height to reserve at the bottom of the content wrapper when
+    // isImmersive && keyboard open (nav bar reappears below the keyboard).
+    const navBarReserveSV = useSharedValue(0);
+    const isImmersiveSV = useSharedValue(isImmersive);
     const headerHeightSV = useSharedValue(0);
     const sheetHeightSV = useSharedValue(sheetHeight);
     const maxHeightPxSV = useSharedValue(maxHeightPx);
@@ -165,6 +182,10 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
     useEffect(() => {
       bottomInsetSV.value = effectiveBottomInset;
     }, [effectiveBottomInset, bottomInsetSV]);
+
+    useEffect(() => {
+      isImmersiveSV.value = isImmersive;
+    }, [isImmersive, isImmersiveSV]);
 
     // Keep UI-thread screenHeight in sync with the effective screen height.
     // effectiveScreenH = physScreenH when immersive, else useWindowDimensions().
@@ -197,34 +218,53 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
     }, [effectiveScreenH, screenHeightSV, sheetHeightSV, isDynamicSizing, snapPointsPixels, activeSnapIndex, position]);
 
     // ── Keyboard ──────────────────────────────────────────────────────────────
-    // Keyboard.addListener works correctly in any context (Modal-free).
-    // withTiming on keyboardHeightSV matches the system keyboard animation.
+    // When isImmersive + keyboard opens, the nav bar reappears at the bottom of
+    // the screen. Add paddingBottom = navBarHeight to scroll views so the last
+    // list item is not hidden behind the nav bar.
+    // navBarReserveJS is passed via context as paddingBottom on BottomSheetFlatList.
+    const [navBarReserveJS, setNavBarReserveJS] = useState(0);
+
     useEffect(() => {
       if (!enableKeyboardAvoid) return;
 
       const show = Keyboard.addListener(
         Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
         (e) => {
+          const duration = Platform.OS === 'ios' ? e.duration : 220;
           keyboardHeightSV.value = withTiming(e.endCoordinates.height, {
-            duration: Platform.OS === 'ios' ? e.duration : 220,
+            duration,
             easing: Easing.out(Easing.cubic),
           });
+          if (isImmersiveSV.value) {
+            const h = navBarHeight;
+            navBarReserveSV.value = h;
+            setNavBarReserveJS(h);
+          }
         }
       );
       const hide = Keyboard.addListener(
         Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-        (e) => {
+        () => {
+          const duration = Platform.OS === 'ios' ? 250 : 180;
           keyboardHeightSV.value = withTiming(0, {
-            duration: Platform.OS === 'ios' ? e.duration : 180,
+            duration,
             easing: Easing.out(Easing.cubic),
           });
+          navBarReserveSV.value = 0;
+          setNavBarReserveJS(0);
         }
       );
       return () => {
         show.remove();
         hide.remove();
       };
-    }, [enableKeyboardAvoid, keyboardHeightSV]);
+    }, [
+      enableKeyboardAvoid,
+      keyboardHeightSV,
+      navBarReserveSV,
+      isImmersiveSV,
+      navBarHeight,
+    ]);
 
     // ── Spring / timing config ────────────────────────────────────────────────
     // withSpring and withTiming accept incompatible config shapes, so we split
@@ -423,11 +463,7 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
       };
     });
 
-    // Content wrapper: bottom edge = keyboard top (or nav bar top when no keyboard).
-    // bottomInset is NOT subtracted here — instead it is forwarded via context to
-    // BottomSheetFlatList / BottomSheetScrollView as contentContainerStyle.paddingBottom.
-    // This way the sheet background fills to the screen edge with no white gap,
-    // while scroll content stops above the navigation bar.
+    // Content wrapper: clips the list to the visible area above the keyboard.
     const rContentWrapperStyle = useAnimatedStyle(() => {
       const sh = screenHeightSV.value;
       const kb = keyboardHeightSV.value;
@@ -435,7 +471,6 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
       const minY = sh - maxHeightPxSV.value;
       const naturalY = position.value - kb;
       const clampedY = kb > 0 ? Math.max(naturalY, minY) : Math.max(naturalY, 0);
-      // Visible area from sheet top to keyboard top
       const visibleSheetH = sh - kb - clampedY;
       return {
         height: Math.max(visibleSheetH - chrome, MIN_CONTENT_HEIGHT),
@@ -535,9 +570,14 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
     const contentScrollEnabled =
       isDynamicSizing ||
       activeSnapIndex === Math.max(snapPointsPixels.length - 1, 0);
+    // bottomInset: normal nav bar padding (non-immersive) +
+    //             nav bar reserve while keyboard is open in immersive mode.
     const contextValue = useMemo(
-      () => ({ contentScrollEnabled, bottomInset: effectiveBottomInset }),
-      [contentScrollEnabled, effectiveBottomInset]
+      () => ({
+        contentScrollEnabled,
+        bottomInset: effectiveBottomInset + navBarReserveJS,
+      }),
+      [contentScrollEnabled, effectiveBottomInset, navBarReserveJS]
     );
 
     // ── Render ─────────────────────────────────────────────────────────────────
@@ -585,7 +625,11 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'black',
   },
   sheet: {

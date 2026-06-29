@@ -137,6 +137,14 @@ export interface BottomSheetProps extends ViewProps {
    */
   isImmersive?: boolean;
 
+  /**
+   * Physical navigation-bar height in dp, measured once at app launch.
+   * When immersive mode is on and the keyboard opens, the system nav bar
+   * reappears — pass this so the sheet shrinks its content area accordingly.
+   * Defaults to {@link getNavBarHeight}() when omitted.
+   */
+  navBarHeight?: number;
+
   // ── Keyboard ─────────────────────────────────────────────────────────────
 
   /**

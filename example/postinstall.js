@@ -2,26 +2,61 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
-// Create ReactAndroid stub directory and gradle.properties for New Architecture compatibility
-const reactNativePath = path.join(__dirname, 'node_modules', 'react-native');
+const exampleDir = __dirname;
+const rootNodeModules = path.join(exampleDir, '..', 'node_modules');
+const exampleNodeModules = path.join(exampleDir, 'node_modules');
+
+// Yarn workspaces hoist dependencies to the monorepo root. Android Gradle and
+// codegen tasks still resolve packages from example/node_modules, so mirror the
+// hoisted packages here via directory junctions (Windows) or symlinks (Unix).
+function linkHoistedPackage(name) {
+  const target = path.join(rootNodeModules, name);
+  const link = path.join(exampleNodeModules, name);
+
+  if (!fs.existsSync(target)) return;
+  if (!fs.statSync(target).isDirectory()) return;
+  if (fs.existsSync(link)) return;
+
+  fs.mkdirSync(exampleNodeModules, { recursive: true });
+
+  try {
+    if (process.platform === 'win32') {
+      execSync(`cmd /c mklink /J "${link}" "${target}"`, { stdio: 'pipe' });
+    } else {
+      fs.symlinkSync(target, link, 'dir');
+    }
+    console.log(`Linked ${name} -> ${target}`);
+  } catch {
+    // Junction may already exist from a previous run — safe to ignore.
+  }
+}
+
+if (fs.existsSync(rootNodeModules)) {
+  const skip = new Set(['.bin', '.generated']);
+  for (const name of fs.readdirSync(rootNodeModules)) {
+    if (skip.has(name) || name.startsWith('.')) continue;
+    linkHoistedPackage(name);
+  }
+}
+
+// Legacy stub — only needed when react-native lives locally (non-hoisted).
+const reactNativePath = path.join(exampleNodeModules, 'react-native');
 const reactNativePackageJson = path.join(reactNativePath, 'package.json');
 
-// Skip stub creation when react-native is hoisted/linked from the monorepo root.
 if (!fs.existsSync(reactNativePackageJson)) {
-  console.log('Skipping ReactAndroid stub: react-native is not installed locally.');
-  process.exit(0);
-}
+  console.log('react-native linked from monorepo root.');
+} else {
+  const reactAndroidPath = path.join(reactNativePath, 'ReactAndroid');
 
-const reactAndroidPath = path.join(reactNativePath, 'ReactAndroid');
+  if (!fs.existsSync(reactAndroidPath)) {
+    console.log('Creating ReactAndroid directory stub for New Architecture...');
+    fs.mkdirSync(reactAndroidPath, { recursive: true });
+  }
 
-if (!fs.existsSync(reactAndroidPath)) {
-  console.log('Creating ReactAndroid directory stub for New Architecture...');
-  fs.mkdirSync(reactAndroidPath, { recursive: true });
-}
-
-const gradlePropertiesPath = path.join(reactAndroidPath, 'gradle.properties');
-const gradlePropertiesContent = `# Stub gradle.properties for New Architecture compatibility
+  const gradlePropertiesPath = path.join(reactAndroidPath, 'gradle.properties');
+  const gradlePropertiesContent = `# Stub gradle.properties for New Architecture compatibility
 # This file is needed by React Native Gradle Plugin when newArchEnabled=true
 
 VERSION_NAME=0.74.0
@@ -30,28 +65,27 @@ POM_ARTIFACT_ID=react-android
 POM_NAME=ReactAndroid
 `;
 
-console.log('Writing ReactAndroid/gradle.properties stub...');
-fs.writeFileSync(gradlePropertiesPath, gradlePropertiesContent, 'utf8');
+  if (!fs.existsSync(gradlePropertiesPath)) {
+    console.log('Writing ReactAndroid/gradle.properties stub...');
+    fs.writeFileSync(gradlePropertiesPath, gradlePropertiesContent, 'utf8');
+  }
 
-// Create CMake stub directory structure
-const cmakeUtilsPath = path.join(reactAndroidPath, 'cmake-utils', 'default-app-setup');
-if (!fs.existsSync(cmakeUtilsPath)) {
-  console.log('Creating CMake utils stub directory...');
-  fs.mkdirSync(cmakeUtilsPath, { recursive: true });
-}
+  const cmakeUtilsPath = path.join(reactAndroidPath, 'cmake-utils', 'default-app-setup');
+  if (!fs.existsSync(cmakeUtilsPath)) {
+    console.log('Creating CMake utils stub directory...');
+    fs.mkdirSync(cmakeUtilsPath, { recursive: true });
+  }
 
-const cmakeListsPath = path.join(cmakeUtilsPath, 'CMakeLists.txt');
-const cmakeListsContent = `# Stub CMakeLists.txt for New Architecture compatibility
-# This file is needed by React Native Gradle Plugin when newArchEnabled=true
-
+  const cmakeListsPath = path.join(cmakeUtilsPath, 'CMakeLists.txt');
+  const cmakeListsContent = `# Stub CMakeLists.txt for New Architecture compatibility
 cmake_minimum_required(VERSION 3.13)
 project(ReactAndroid)
-
-# This is a stub file - the actual CMake configuration
-# is handled by React Native Gradle Plugin
 `;
 
-console.log('Writing CMakeLists.txt stub...');
-fs.writeFileSync(cmakeListsPath, cmakeListsContent, 'utf8');
+  if (!fs.existsSync(cmakeListsPath)) {
+    console.log('Writing CMakeLists.txt stub...');
+    fs.writeFileSync(cmakeListsPath, cmakeListsContent, 'utf8');
+  }
+}
 
-console.log('✅ New Architecture stub files created successfully!');
+console.log('✅ Example node_modules links ready.');

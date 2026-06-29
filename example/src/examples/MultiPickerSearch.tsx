@@ -17,7 +17,6 @@ import { SHEET_STYLE } from '../shared/utils/sheetStyle';
 // ─── Demo catalogue entry ────────────────────────────────────────────────────
 
 export const MULTI_PICKER_SEARCH_DEMO = {
-  key: 'multiSearch' as const,
   title: 'Multi-select + search',
   subtitle: 'Filterable list · multiple selection',
 };
@@ -28,17 +27,9 @@ interface Props {
   values: string[];
   onValuesChange: (items: string[]) => void;
   onClose: () => void;
-  bottomInset?: number;
-  isImmersive?: boolean;
 }
 
-export function MultiPickerSearchSheet({
-  values,
-  onValuesChange,
-  onClose,
-  bottomInset = 0,
-  isImmersive = false,
-}: Props) {
+export function MultiPickerSearchSheet({ values, onValuesChange, onClose }: Props) {
   return (
     <BottomSheetPicker
       title="Select cities"
@@ -50,8 +41,6 @@ export function MultiPickerSearchSheet({
       searchPlaceholder="Search cities..."
       applyButtonLabel="Done"
       onClose={onClose}
-      bottomInset={bottomInset}
-      isImmersive={isImmersive}
       style={SHEET_STYLE}
     />
   );
