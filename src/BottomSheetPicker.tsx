@@ -101,6 +101,18 @@ export interface BottomSheetPickerProps<TItem = string>
   // ── Search ────────────────────────────────────────────────────────────────
   enableSearch?: boolean;
   searchPlaceholder?: string;
+  /**
+   * Controlled value for the search input.
+   * Use together with `onSearchChange` for API-based (server-side) search where
+   * the displayed items change based on the query rather than being filtered locally.
+   * When omitted the picker manages search state internally.
+   */
+  searchValue?: string;
+  /**
+   * Called on every keystroke in the search input.
+   * Use to update the `items` prop based on the query (API search pattern).
+   */
+  onSearchChange?: (text: string) => void;
   /** Extra props forwarded verbatim to the internal TextInput. */
   searchInputProps?: Omit<TextInputProps, 'value' | 'onChangeText' | 'placeholder'>;
 
@@ -195,6 +207,8 @@ export function BottomSheetPicker<TItem = string>({
   // search
   enableSearch = false,
   searchPlaceholder = 'Search...',
+  searchValue: searchValueProp,
+  onSearchChange,
   searchInputProps,
   // header
   title,
@@ -224,7 +238,15 @@ export function BottomSheetPicker<TItem = string>({
   ...sheetProps
 }: BottomSheetPickerProps<TItem>) {
   const { height: screenHeight } = useWindowDimensions();
-  const [query, setQuery] = useState('');
+  // When searchValue is provided externally the picker is in controlled-search mode:
+  // the query is owned by the caller, items should already be pre-filtered.
+  // In uncontrolled mode the picker filters items locally.
+  const isControlledSearch = searchValueProp !== undefined;
+  const [internalQuery, setInternalQuery] = useState('');
+  const query = isControlledSearch ? searchValueProp : internalQuery;
+  const setQuery = isControlledSearch
+    ? (text: string) => onSearchChange?.(text)
+    : setInternalQuery;
   const searchRef = useRef<TextInput>(null);
   const sheetRef = useRef<BottomSheetMethods>(null);
 
@@ -291,11 +313,14 @@ export function BottomSheetPicker<TItem = string>({
   }, [onApply, values]);
 
   // ── Filtering ─────────────────────────────────────────────────────────────
+  // In controlled-search mode items are already filtered by the caller (API search).
+  // In uncontrolled mode filter locally by label.
   const filteredItems = useMemo(() => {
+    if (isControlledSearch) return items;
     const q = query.trim().toLowerCase();
     if (!q) return items;
     return items.filter((item) => getLabel(item).toLowerCase().includes(q));
-  }, [items, query, getLabel]);
+  }, [isControlledSearch, items, query, getLabel]);
 
   // ── Height pre-calculation ─────────────────────────────────────────────────
   const maxHeightPx = useMemo(
