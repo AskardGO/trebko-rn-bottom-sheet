@@ -64,6 +64,9 @@ Built on top of [react-native-reanimated](https://docs.swmansion.com/react-nativ
 - [BottomSheetPortal (global portal)](#bottomsheetportal-global-portal)
 - [Animation config](#animation-config)
 - [Tips & patterns](#tips--patterns)
+  - [Conditionally mount the sheet](#conditionally-mount-the-sheet)
+  - [API search (searchValue / onSearchChange)](#domain-specific-picker-with-forwardref--portal)
+  - [forwardRef + Portal pattern](#domain-specific-picker-with-forwardref--portal)
 
 ---
 
@@ -280,12 +283,38 @@ import { BottomSheetPicker } from '@trebko/rn-bottom-sheet';
 
 ### Search
 
+Local filter (default — items filtered inside the picker):
+
 ```tsx
 <BottomSheetPicker
   title="Select city"
   items={cities}
   enableSearch
   searchPlaceholder="Search cities…"
+  onSelect={setSelected}
+  onClose={() => setOpen(false)}
+/>
+```
+
+API / server-side search — pass `searchValue` + `onSearchChange`, update `items` externally:
+
+```tsx
+const [query, setQuery] = useState('');
+const [results, setResults] = useState<City[]>([]);
+
+useEffect(() => {
+  if (query.length < 2) { setResults([]); return; }
+  fetchCities(query).then(setResults);
+}, [query]);
+
+<BottomSheetPicker
+  title="Select city"
+  items={results}            // pre-filtered by API — local filter is skipped
+  enableSearch
+  searchValue={query}        // controlled
+  onSearchChange={setQuery}  // update query → re-fetch → update items
+  searchPlaceholder="Enter city name…"
+  listEmptyComponent={<MyEmptyState query={query} />}
   onSelect={setSelected}
   onClose={() => setOpen(false)}
 />
@@ -349,6 +378,8 @@ function CityRow({ item, isSelected, onSelect }: PickerRenderItemInfo<string>) {
 |------|------|---------|-------------|
 | `enableSearch` | `boolean` | `false` | Render a search input above the list. |
 | `searchPlaceholder` | `string` | `'Search...'` | Placeholder text. |
+| `searchValue` | `string` | — | **Controlled** search value. Use with `onSearchChange` for API / server-side search. When provided, local item filtering is skipped — pass pre-filtered `items` instead. |
+| `onSearchChange` | `(text: string) => void` | — | Fired on every keystroke. Update `items` based on the query to implement API search. |
 | `searchInputProps` | `TextInputProps` | — | Extra props forwarded to the `TextInput` (excluding `value` and `onChangeText`). |
 
 #### Header
@@ -764,6 +795,93 @@ const rBackdrop = useAnimatedStyle(() => ({
 
 <BottomSheet snapPoints={['40%', '90%']} animatedIndex={idx}>...</BottomSheet>
 <Animated.View style={[StyleSheet.absoluteFill, rBackdrop, { backgroundColor: 'black' }]} />
+```
+
+### Domain-specific picker with forwardRef + Portal
+
+The recommended real-world pattern: wrap `BottomSheetPicker` in a domain component that exposes only an `open()` method. The component renders `null` — the Portal renders the sheet full-screen at root level.
+
+```tsx
+import { forwardRef, useCallback, useImperativeHandle, useState, useEffect } from 'react';
+import { BottomSheetPicker, useSheet } from '@trebko/rn-bottom-sheet';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface City { id: number; name: string; region: string; }
+
+export interface CityPickerHandle { open: () => void; }
+interface CityPickerProps {
+  selectedId?: number | null;
+  onSelect: (city: City) => void;
+}
+
+// ── Internal component: mounted by Portal, manages its own search state ───────
+
+function CityPickerContent({ selectedId, onSelect, onClose }: CityPickerProps & { onClose: () => void }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<City[]>([]);
+
+  useEffect(() => {
+    if (query.length < 2) { setResults([]); return; }
+    const t = setTimeout(() => fetchCities(query).then(setResults), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  return (
+    <BottomSheetPicker<City>
+      title="City"
+      items={results}
+      value={results.find(c => c.id === selectedId)}
+      enableSearch
+      searchValue={query}
+      onSearchChange={setQuery}
+      searchPlaceholder="Enter city name…"
+      getItemLabel={c => c.name}
+      keyExtractor={c => String(c.id)}
+      onSelect={(city) => { onSelect(city); onClose(); }}
+      onClose={onClose}
+    />
+  );
+}
+
+// ── Public controller: renders null, opens via Portal ─────────────────────────
+
+export const CityPicker = forwardRef<CityPickerHandle, CityPickerProps>(
+  function CityPicker({ selectedId, onSelect }, ref) {
+    const { open } = useSheet();
+
+    useImperativeHandle(ref, () => ({
+      open: () => open((close) => (
+        <CityPickerContent
+          selectedId={selectedId}
+          onSelect={onSelect}
+          onClose={close}
+        />
+      )),
+    }), [open, selectedId, onSelect]);
+
+    return null;
+  }
+);
+```
+
+Usage in a form — the sheet opens full-screen regardless of how deep the form is nested:
+
+```tsx
+function ShippingForm() {
+  const [city, setCity] = useState<City>();
+  const cityRef = useRef<CityPickerHandle>(null);
+
+  return (
+    <ScrollView>
+      <CityPicker ref={cityRef} selectedId={city?.id} onSelect={setCity} />
+
+      <TouchableOpacity onPress={() => cityRef.current?.open()}>
+        <Text>{city?.name ?? 'Select city'}</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
 ```
 
 ---
