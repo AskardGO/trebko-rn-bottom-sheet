@@ -344,10 +344,12 @@ export function PackageFormDemo() {
         onSelect={handleSelectTo}
       />
 
-      <Text style={form.heading}>Package creation</Text>
-      <Text style={form.hint}>
-        Both pickers open from inside this ScrollView — Portal renders them full-screen.
-      </Text>
+      <View style={form.intro}>
+        <Text style={form.heading}>Package creation</Text>
+        <Text style={form.hint}>
+          Both pickers open from inside this ScrollView — Portal renders them full-screen.
+        </Text>
+      </View>
 
       {/* ScrollView is the "uncomfortable container" */}
       <ScrollView
@@ -356,28 +358,33 @@ export function PackageFormDemo() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <FormField
-          label="From"
-          value={fromCity ? `${fromCity.city}, ${fromCity.region}` : undefined}
-          placeholder="Select origin city"
-          onPress={() => fromRef.current?.open()}
-        />
-        <FormField
-          label="To"
-          value={toCity ? `${toCity.city}, ${toCity.region}` : undefined}
-          placeholder="Select destination city"
-          onPress={() => toRef.current?.open()}
-        />
+        <View style={form.section}>
+          <Text style={form.sectionLabel}>ROUTE</Text>
+          <FormField
+            label="From"
+            value={fromCity ? `${fromCity.city}, ${fromCity.region}` : undefined}
+            placeholder="Select origin city"
+            onPress={() => fromRef.current?.open()}
+          />
+          <FormField
+            label="To"
+            value={toCity ? `${toCity.city}, ${toCity.region}` : undefined}
+            placeholder="Select destination city"
+            onPress={() => toRef.current?.open()}
+          />
+        </View>
 
-        {/* Extra fields to make the form realistically long */}
-        {MOCK_FIELDS.map((f) => (
-          <View key={f.label} style={field.wrapper}>
-            <Text style={field.label}>{f.label}</Text>
-            <View style={[field.input, form.mockField]}>
-              <Text style={[field.value, field.placeholder]}>{f.placeholder}</Text>
+        <View style={form.section}>
+          <Text style={form.sectionLabel}>RECIPIENT</Text>
+          {MOCK_FIELDS.map((f) => (
+            <View key={f.label} style={field.wrapper}>
+              <Text style={field.label}>{f.label}</Text>
+              <View style={[field.input, form.mockField]}>
+                <Text style={[field.value, field.placeholder]}>{f.placeholder}</Text>
+              </View>
             </View>
-          </View>
-        ))}
+          ))}
+        </View>
       </ScrollView>
     </View>
   );
@@ -391,10 +398,26 @@ const MOCK_FIELDS = [
 ];
 
 const form = StyleSheet.create({
-  container: { flex: 1 },
-  heading:   { fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 4 },
-  hint:      { fontSize: 13, color: '#6B7280', marginBottom: 16, lineHeight: 18 },
-  scroll:    { flex: 1 },
-  scrollContent: { gap: 14, paddingBottom: 24 },
-  mockField: { opacity: 0.5 },
+  container:    { flex: 1 },
+  intro: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  heading:      { fontSize: 22, fontWeight: '700', color: '#111827', marginBottom: 4 },
+  hint:         { fontSize: 13, color: '#6B7280', lineHeight: 18 },
+  scroll:       { flex: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 24 },
+  section:      { gap: 12 },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6366F1',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  mockField:    { opacity: 0.45 },
 });

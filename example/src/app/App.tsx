@@ -374,13 +374,16 @@ const s = StyleSheet.create({
 
   formScreen: { flex: 1, backgroundColor: '#F3F4F6' },
   formHeader: {
-    padding: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 14,
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    gap: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   backBtn:   { fontSize: 14, color: '#6366F1', fontWeight: '600' },
-  formTitle: { fontSize: 20, fontWeight: '700', color: '#111827' },
+  formTitle: { fontSize: 18, fontWeight: '700', color: '#111827', flex: 1 },
 });
