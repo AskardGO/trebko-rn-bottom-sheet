@@ -45,5 +45,12 @@ export function resolveSize(
  * One-time screen height snapshot used only for the initial SharedValue
  * seed in BottomSheet (before the first useWindowDimensions render).
  * All reactive calculations inside the component use `useWindowDimensions`.
+ *
+ * On some Android devices `Dimensions.get('window').height` returns 0 at
+ * module-evaluation time (before the native window is initialised). A zero
+ * seed would place the sheet at y=0 (full screen) on the first frame, so
+ * fall back to a safe off-screen value.
  */
-export const INITIAL_SCREEN_HEIGHT = Dimensions.get('window').height;
+const windowHeightAtLoad = Dimensions.get('window').height;
+export const INITIAL_SCREEN_HEIGHT =
+  windowHeightAtLoad > 0 ? windowHeightAtLoad : 1000;

@@ -26,9 +26,10 @@ Built on top of [react-native-reanimated](https://docs.swmansion.com/react-nativ
 
 ## Features
 
-- **Dynamic sizing** — auto-sizes to content height, no manual calculations needed
+- **Dynamic sizing** — auto-sizes to content height; pass `contentHeight` to skip the measurement round-trip when the height is known upfront
 - **Snap points** — fixed percentage/pixel snap positions with smooth transitions
 - **Keyboard avoidance** — sheet lifts above the software keyboard frame-perfectly
+- **Android back button** — hardware back dismisses the sheet when `enablePanDownToClose` is enabled
 - **Picker component** — single-select, multi-select, searchable, fully customisable rows
 - **Custom scroll indicator** — animated thumb, no native flicker
 - **Immersive mode (Android)** — hide the navigation bar; `InsetScreen` + `useImmersiveMode` handle insets automatically
@@ -67,8 +68,11 @@ Built on top of [react-native-reanimated](https://docs.swmansion.com/react-nativ
 - [Animation config](#animation-config)
 - [Tips & patterns](#tips--patterns)
   - [Conditionally mount the sheet](#conditionally-mount-the-sheet)
+  - [Close with animation (Portal)](#close-with-animation-portal)
+  - [Dynamic sizing for custom sheets](#dynamic-sizing-for-custom-sheets)
   - [API search (searchValue / onSearchChange)](#domain-specific-picker-with-forwardref--portal)
   - [forwardRef + Portal pattern](#domain-specific-picker-with-forwardref--portal)
+- [Changelog](#changelog)
 
 ---
 
@@ -144,6 +148,8 @@ function CityField() {
 }
 ```
 
+> `BottomSheetPicker` closes instantly when you call portal `close()` in `onSelect`. For a plain `BottomSheet` with custom content, use `sheetRef.current?.close()` instead — see [Close with animation (Portal)](#close-with-animation-portal).
+
 ### Classic BottomSheet (without Portal)
 
 If you only need a sheet at root level, you can skip the Portal and render it directly as a sibling of your content:
@@ -216,7 +222,7 @@ function Example() {
 | `headerComponent` | `ReactNode` | — | Rendered below the handle, above the scrollable area. Great for titles or search bars. |
 | `enableBackdrop` | `boolean` | `true` | Render a dimmed backdrop behind the sheet. |
 | `backdropOpacity` | `number` | `0.5` | Max backdrop opacity (0–1). Driven by sheet position — no extra animation. |
-| `enablePanDownToClose` | `boolean` | `true` | Allow the handle to be dragged down to close the sheet. |
+| `enablePanDownToClose` | `boolean` | `true` | Allow the handle to be dragged down to close the sheet. When `true`, the Android hardware back button also dismisses the sheet instead of navigating back. |
 | `enableHandlePanningGesture` | `boolean` | `true` | Enable the pan gesture on the handle. |
 | `bottomInset` | `number` | auto¹ | Bottom safe-area inset in dp. Auto-read from `useImmersiveMode()` — only pass explicitly to override (e.g. iOS `useSafeAreaInsets().bottom`). |
 | `isImmersive` | `boolean` | auto¹ | Whether Android immersive mode (nav bar hidden) is active. Auto-read from `useImmersiveMode()`. |
@@ -226,7 +232,7 @@ function Example() {
 | `animatedPosition` | `SharedValue<number>` | — | External shared value mirroring the sheet's `translateY`. Drive parallel animations from it. |
 | `animatedIndex` | `SharedValue<number>` | — | External shared value mirroring the current snap index. |
 | `onChange` | `(index: number) => void` | — | Fires when the sheet settles at a new snap point (zero-based index). |
-| `onClose` | `() => void` | — | Fires after the sheet has fully animated off-screen. Unmount the sheet here. |
+| `onClose` | `() => void` | — | Fires after the sheet has fully animated off-screen. Unmount the sheet here. Always call `ref.close()` (not the portal `close` directly) when you want the exit animation to play before unmounting. |
 | `style` | `StyleProp<ViewStyle>` | — | Extra styles on the sheet container. Override `backgroundColor`, `borderTopLeftRadius`, shadows, etc. |
 
 > `SnapPoint` is `number | string`. Examples: `300`, `'50%'`, `'90%'`.
@@ -814,6 +820,67 @@ const [open, setOpen] = useState(false);
 )}
 ```
 
+### Close with animation (Portal)
+
+When a sheet is opened via `useSheet().open(close => …)`, pass the portal `close` callback to `onClose` so the sheet unmounts after the exit animation. **Do not** call portal `close()` directly from a button inside the sheet — that unmounts instantly with no animation.
+
+Use a `ref` and call `ref.close()` instead. The sheet animates off-screen, then fires `onClose`, which unmounts the portal:
+
+```tsx
+import { useRef } from 'react';
+import { BottomSheet, useSheet } from '@trebko/rn-bottom-sheet';
+import type { BottomSheetMethods } from '@trebko/rn-bottom-sheet';
+
+function StatusSheetContent({ onClose }: { onClose: () => void }) {
+  const sheetRef = useRef<BottomSheetMethods>(null);
+
+  return (
+    <BottomSheet ref={sheetRef} onClose={onClose}>
+      <Button
+        title="Confirm"
+        onPress={() => {
+          // do work…
+          sheetRef.current?.close(); // animated exit → onClose → portal unmount
+        }}
+      />
+    </BottomSheet>
+  );
+}
+
+// In the parent:
+open((close) => <StatusSheetContent onClose={close} />);
+```
+
+The same pattern applies to `BottomSheetPicker` in custom wrappers — call `sheetRef.current?.close()` in `onApply`, not portal `close()` directly.
+
+### Dynamic sizing for custom sheets
+
+`BottomSheet` with `dynamicSizing` (the default when `snapPoints` is omitted) measures children automatically. Two tips for reliable sizing:
+
+**Small static content** — just render children; no extra props needed:
+
+```tsx
+<BottomSheet onClose={close}>
+  <View style={{ padding: 16 }}>
+    <Button title="Option A" />
+    <Button title="Option B" />
+  </View>
+</BottomSheet>
+```
+
+**Scrollable or known-height content** — pass `contentHeight` to skip the layout round-trip (same approach as `BottomSheetPicker`):
+
+```tsx
+const HANDLE_CHROME = 32 + 16; // handle area + bottom padding
+const height = Math.min(rowCount * ITEM_H + HANDLE_CHROME + headerH, screenH * 0.9);
+
+<BottomSheet dynamicSizing contentHeight={height} onClose={close}>
+  <BottomSheetFlatList data={items} renderItem={renderRow} />
+</BottomSheet>
+```
+
+When using `BottomSheetFlatList` / `BottomSheetScrollView` inside a dynamic sheet without `contentHeight`, the list fills the available area and scrolls once content exceeds `maxHeight`.
+
 ### Drive a sticky header from the sheet position
 
 ```tsx
@@ -920,6 +987,8 @@ export const CityPicker = forwardRef<CityPickerHandle, CityPickerProps>(
 );
 ```
 
+> For a plain `BottomSheet` (not `BottomSheetPicker`), use `sheetRef.current?.close()` in action handlers — see [Close with animation (Portal)](#close-with-animation-portal).
+
 Usage in a form — the sheet opens full-screen regardless of how deep the form is nested:
 
 ```tsx
@@ -938,6 +1007,24 @@ function ShippingForm() {
   );
 }
 ```
+
+---
+
+## Changelog
+
+### 0.2.8
+
+- **Docs** update README: Android back button, dynamic sizing patterns, animated close via `ref.close()`, changelog; remove obsolete internal markdown files
+
+### 0.2.7
+
+- **Fix** dynamic sizing opening at full `maxHeight` for small content (e.g. a row of buttons) — guard `INITIAL_SCREEN_HEIGHT` against zero on Android; measure intrinsic content height via an inner `View` instead of the animated wrapper
+- **Fix** backdrop tap starting the close animation but the sheet springing back open — cancel competing animations on close; always fire `onClose` after the exit animation
+- **Add** Android hardware back button dismisses the sheet when `enablePanDownToClose` is `true`
+
+### 0.2.6
+
+- Portal-first quick start, `BottomSheetPortal` + `useSheet` documentation
 
 ---
 

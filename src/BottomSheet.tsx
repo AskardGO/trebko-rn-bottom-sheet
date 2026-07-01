@@ -8,6 +8,7 @@ import React, {
   useRef,
 } from 'react';
 import {
+  BackHandler,
   Dimensions,
   View,
   StyleSheet,
@@ -22,6 +23,7 @@ import Animated, {
   withSpring,
   withTiming,
   runOnJS,
+  cancelAnimation,
   Easing,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -124,6 +126,23 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
     // sibling effects fire during the same React commit (which caused the mount
     // spring to be immediately overridden by a second spring in the resize effect).
     const isFirstHeightChange = useRef(true);
+    // Set while the close animation runs. Suppresses the resize effect so a
+    // late onLayout (content shrinking as the sheet slides out) cannot launch
+    // a competing spring that interrupts the close timing.
+    const isClosing = useRef(false);
+
+    // Cap for the inner measuring View in dynamic mode: the content area may
+    // never exceed the space available inside a sheet at maxHeight. Without
+    // this cap a flex child (e.g. a FlatList) would grow to its full content
+    // height and lose scrollability.
+    const contentMaxHeight = Math.max(
+      maxHeightPx -
+        HANDLE_AREA -
+        headerHeight -
+        CHROME_PADDING -
+        effectiveBottomInset,
+      MIN_CONTENT_HEIGHT
+    );
 
     const sheetHeight = useMemo(() => {
       if (!isDynamicSizing) {
@@ -335,14 +354,36 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
     );
 
     const close = useCallback(() => {
+      // Block the resize effect and stop any in-flight animation so nothing
+      // competes with the close timing (a competing spring would interrupt it
+      // with finished=false and the sheet would bounce back).
+      isClosing.current = true;
+      cancelAnimation(position);
+      cancelAnimation(sheetHeightSV);
       position.value = withTiming(
         effectiveScreenH,
         { duration: CLOSE_DURATION, easing: CLOSE_EASING },
-        (finished) => {
-          if (finished && onClose) runOnJS(onClose)();
+        () => {
+          // Fire unconditionally: even if something interrupts the timing the
+          // sheet must still unmount, otherwise it stays stuck on screen.
+          if (onClose) runOnJS(onClose)();
         }
       );
-    }, [effectiveScreenH, position, onClose]);
+    }, [effectiveScreenH, position, sheetHeightSV, onClose]);
+
+    // ── Android hardware back button ──────────────────────────────────────────
+    // Same semantics as pan-down-to-close: if the user may dismiss the sheet
+    // by dragging, the back button dismisses it too (instead of navigating).
+    useEffect(() => {
+      if (!enablePanDownToClose) return;
+
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        close();
+        return true; // consume the event — prevent navigation back
+      });
+
+      return () => sub.remove();
+    }, [enablePanDownToClose, close]);
 
     // ── Handle pan — ONLY the handle drag moves / closes the sheet ────────────
     const handlePanGesture = useMemo(() => {
@@ -494,6 +535,7 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
 
     // ── Open animation on mount ───────────────────────────────────────────────
     useEffect(() => {
+      isClosing.current = false;
       // sheetHeightSV is already initialised to sheetHeight (correct visual size).
       // We only need to animate position.value from off-screen to the target.
       if (isDynamicSizing) {
@@ -517,6 +559,9 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
         return;
       }
       if (!isDynamicSizing) return;
+      // While closing, ignore late content-height changes — resizing here would
+      // interrupt the close animation and visually bring the sheet back.
+      if (isClosing.current) return;
       // Animate size and position atomically: bottom edge = position + height = effectiveScreenH
       if (timingConfig) {
         position.value = withTiming(effectiveScreenH - sheetHeight, timingConfig);
@@ -551,11 +596,17 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
     const handleContentLayout = useCallback(
       (event: { nativeEvent: { layout: { height: number } } }) => {
         if (contentHeightProp !== undefined) return;
+        // Intrinsic content height + all chrome around it: handle area,
+        // header (if any), bottom padding and safe-area inset.
         const h =
-          event.nativeEvent.layout.height + HANDLE_AREA + CHROME_PADDING + effectiveBottomInset;
+          event.nativeEvent.layout.height +
+          HANDLE_AREA +
+          headerHeight +
+          CHROME_PADDING +
+          effectiveBottomInset;
         setMeasuredHeight((prev) => (Math.abs(prev - h) > 1 ? h : prev));
       },
-      [contentHeightProp, effectiveBottomInset]
+      [contentHeightProp, headerHeight, effectiveBottomInset]
     );
 
     const handleHeaderLayout = useCallback(
@@ -609,12 +660,27 @@ export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
               </View>
             ) : null}
 
-            {/* Content wrapper: height animates to stay above keyboard */}
-            <Animated.View
-              style={[styles.contentWrapper, rContentWrapperStyle]}
-              onLayout={isDynamicSizing ? handleContentLayout : undefined}
-            >
-              {children}
+            {/* Content wrapper: height animates to stay above keyboard.
+                When dynamic sizing needs a layout measurement, onLayout lives
+                on an inner View so Yoga measures the intrinsic content height.
+                Measuring the animated wrapper itself creates a feedback loop
+                (animated height → onLayout → measuredHeight → sheetHeight →
+                animated height). The inner View is capped at the content-area
+                max height so scroll views stay scrollable when the content is
+                taller than maxHeight. When the height is known (contentHeight
+                prop or snap mode) children stay direct so flex: 1 scroll views
+                keep filling the wrapper. */}
+            <Animated.View style={[styles.contentWrapper, rContentWrapperStyle]}>
+              {isDynamicSizing && contentHeightProp === undefined ? (
+                <View
+                  style={{ maxHeight: contentMaxHeight }}
+                  onLayout={handleContentLayout}
+                >
+                  {children}
+                </View>
+              ) : (
+                children
+              )}
             </Animated.View>
           </Animated.View>
         </BottomSheetContext.Provider>
