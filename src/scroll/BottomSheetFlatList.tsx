@@ -8,7 +8,7 @@ import { View } from 'react-native';
 import { FlatList } from 'react-native-gesture-handler';
 import type { FlatListProps } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
-import { useBottomSheetContext } from './BottomSheetContext';
+import { useBottomSheetContext } from '../bottom-sheet/BottomSheetContext';
 import {
   ScrollIndicator,
   type ScrollIndicatorProps,

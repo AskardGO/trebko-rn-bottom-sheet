@@ -6,7 +6,7 @@ import type {
   TextStyle,
   ViewStyle,
 } from 'react-native';
-import type { ScrollIndicatorProps } from './ScrollIndicator';
+import type { ScrollIndicatorProps } from '../scroll/ScrollIndicator';
 import {
   Dimensions,
   Pressable,
@@ -16,18 +16,17 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { BottomSheet } from './BottomSheet';
-import { BottomSheetFlatList } from './BottomSheetFlatList';
-import { useImmersiveMode } from './useImmersiveMode';
-import type { BottomSheetMethods, BottomSheetProps } from './types';
-import { resolveSize } from './utils';
-
-// Must match BottomSheet.tsx constants
-const DEFAULT_ITEM_HEIGHT = 52;
-const HANDLE_AREA = 32;
-const CHROME_PADDING = 16;
-const TITLE_HEIGHT = 36;   // title text + marginBottom
-const SEARCH_HEIGHT = 60;  // TextInput(44) + marginBottom(8) + gap(8)
+import { BottomSheet } from '../bottom-sheet/BottomSheet';
+import { BottomSheetFlatList } from '../scroll/BottomSheetFlatList';
+import { useImmersiveMode } from '../immersive/useImmersiveMode';
+import type { BottomSheetMethods, BottomSheetProps } from '../types';
+import { resolveSize } from '../utils';
+import { CHROME_PADDING, HANDLE_AREA } from '../bottom-sheet/constants';
+import {
+  DEFAULT_ITEM_HEIGHT,
+  SEARCH_HEIGHT,
+  TITLE_HEIGHT,
+} from './constants';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public types

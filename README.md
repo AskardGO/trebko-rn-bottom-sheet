@@ -1012,6 +1012,10 @@ function ShippingForm() {
 
 ## Changelog
 
+### 0.2.9
+
+- **Refactor** reorganize `src/` into feature folders (`bottom-sheet`, `portal`, `picker`, `scroll`, `immersive`, `types`, `utils`); extract shared layout constants
+
 ### 0.2.8
 
 - **Docs** update README: Android back button, dynamic sizing patterns, animated close via `ref.close()`, changelog; remove obsolete internal markdown files

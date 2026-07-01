@@ -27,28 +27,20 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import type { BottomSheetProps, BottomSheetMethods } from './types';
+import type { BottomSheetProps, BottomSheetMethods } from '../types';
 import { BottomSheetContext } from './BottomSheetContext';
-import { useImmersiveMode } from './useImmersiveMode';
-import { resolveSize, INITIAL_SCREEN_HEIGHT } from './utils';
-
-// handle paddingTop(12) + handle(4) + paddingBottom(8) + gap(8) = 32
-const HANDLE_AREA = 32;
-// paddingBottom on the sheet container
-const CHROME_PADDING = 16;
-const MIN_CONTENT_HEIGHT = 40;
-// Extra pixels the sheet extends below the keyboard top.
-// Eliminates the gap between keyboard and sheet during keyboard animation.
-const KEYBOARD_OVERLAP = 100;
-// Extra pixels the sheet VIEW extends below the screen bottom (invisible).
-// Covers the spring-bounce gap when the sheet opens with a lively animation.
-const BOTTOM_OVERFLOW = 80;
-
-// Open: lively spring with a small natural overshoot
-const OPEN_SPRING = { damping: 14, stiffness: 150, mass: 0.9 };
-// Close: ease-out cubic, slightly faster than the open
-const CLOSE_DURATION = 260;
-const CLOSE_EASING = Easing.out(Easing.cubic);
+import { useImmersiveMode } from '../immersive/useImmersiveMode';
+import { resolveSize, INITIAL_SCREEN_HEIGHT } from '../utils';
+import {
+  BOTTOM_OVERFLOW,
+  CHROME_PADDING,
+  CLOSE_DURATION,
+  CLOSE_EASING,
+  HANDLE_AREA,
+  KEYBOARD_OVERLAP,
+  MIN_CONTENT_HEIGHT,
+  OPEN_SPRING,
+} from './constants';
 
 export const BottomSheet = forwardRef<BottomSheetMethods, BottomSheetProps>(
   (
